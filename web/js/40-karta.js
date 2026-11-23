@@ -1,11 +1,17 @@
   // ---------- karta ----------
   const ROOF = { flat: 'plochá', gabled: 'sedlová', hipped: 'valbová', pyramidal: 'stanová' };
-  function showCard({ title, text, rows, lon, lat, k, link, linkText, target }) {
+  function showCard({ title, text, rows, lon, lat, k, link, linkText, target, dep }) {
     $('cardTitle').textContent = title;
     if (k && !(LAYERS.find((l) => l.key === k) || {}).status?.startsWith('hotovo')) { const t = document.createElement('span'); t.className = 'wip-tag'; t.textContent = 'Rozpracováno'; $('cardTitle').append(' ', t); }
     $('cardText').hidden = !text; $('cardText').textContent = text || '';
-    const dl = $('cardDl'); dl.replaceChildren();
-    for (const [k, v] of rows) { if (v === undefined || v === null || v === '') continue; const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; dl.append(dt, dd); }
+    const dl = $('cardDl'); dl.replaceChildren(); dl.classList.toggle('dep', !!dep); $('card').classList.toggle('dep-card', !!dep);   // dep: odjezdy (řádek = spoj)
+    for (const [k, v] of rows) {
+      if (v === undefined || v === null || v === '') continue;
+      const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd');
+      if (Array.isArray(v)) v.forEach((s, i) => { const sp = document.createElement('span'); sp.className = 'tm'; sp.textContent = s; if (i) dd.append(', '); dd.append(sp); });   // pole = časy, každý se drží pohromadě
+      else dd.textContent = v;
+      dl.append(dt, dd);
+    }
     const links = $('cardLinks'); links.replaceChildren();
     if (link) {
       const btn = document.createElement('a'); btn.href = link; btn.className = 'card-neighbor-btn';
@@ -85,7 +91,7 @@
     if (pl) { showCard({ title: pl.name, text: pl.text, lon: pl.lon, lat: pl.lat, k: pl.k, rows: [] }); return; }
     showCard({ title: 'Vybrané místo', rows: [], lon, lat });
   }
-  const closeCard = () => { $('card').hidden = true; state.sel = null; };
+  const closeCard = () => { $('card').hidden = true; state.sel = null; state.selStop = null; };
   $('cardClose').addEventListener('click', closeCard);
   addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('card').hidden && !document.querySelector('dialog[open]') && !e.target.matches('input, textarea')) closeCard(); });
   // mobil: kartu jde stáhnout prstem dolů

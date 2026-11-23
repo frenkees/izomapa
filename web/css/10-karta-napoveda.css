@@ -12,6 +12,12 @@
 .card dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: .86rem; }
 .card dt { color: var(--muted); }
 .card dd { margin: 0; font-variant-numeric: tabular-nums; }
+/* odjezdy ze zastávky (showCard dep): řádek = spoj, časy se nezalamují uprostřed */
+.card dl.dep { grid-template-columns: 1fr; gap: 0; font-size: .84rem; }
+.card dl.dep dt { color: var(--ink); font-weight: 600; margin-top: 7px; }
+.card dl.dep dt:first-child { margin-top: 0; }
+.card dl.dep dd { color: var(--muted); }
+.card .tm { white-space: nowrap; }
 .card p { margin: 0; font-size: .86rem; line-height: 1.45; }
 .card .close { position: absolute; top: 6px; right: 6px; width: 32px; height: 32px; padding: 0; }
 .head { flex-wrap: wrap; row-gap: 0; }

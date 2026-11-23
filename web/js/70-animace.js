@@ -438,7 +438,7 @@
     return Array.from({ length: t.n }, (_, j) => ({ r, s: r.L * (j + 0.5) / t.n, dir: j % 2 ? -1 : 1, v: 8, wait: 0, stopS }));
   });
   // MHD podle jízdních řádů GTFS (site/mhd.json z mhd.py): poloha každého spoje podle skutečného času
-  const MHD = { on: false, act: [], t: -1, drawn: [], follow: null };
+  const MHD = { on: false, act: [], t: -1, drawn: [], follow: null, route: null };   // route: spoj, jehož trasa je nakreslená
   // bez GTFS v mesto.json se mhd.json nevyrábí: nežádat o něj (jinak chyba 404 v konzoli)
   if ({{MHD}}) fetch('mhd.json' + VER).then((r) => r.json()).then((m) => {
     m.shapes = m.shapes.map((w) => { const len = [0]; for (let i = 1; i < w.length; i++) len.push(len[i - 1] + Math.hypot(w[i][0] - w[i - 1][0], w[i][1] - w[i - 1][1])); return { w, len, L: len[len.length - 1] }; });
@@ -492,21 +492,74 @@
     return out;
   }
   const MHD_DRUH = (typ) => (typ === 0 ? 'Tramvaj' : typ === 2 ? 'Vlak' : typ === 11 ? 'Trolejbus' : 'Autobus');   // route_type GTFS (11 = trolejbus)
-  function mhdFollow(i) {                                  // kliknutí na vozidlo: pohled jede za ním, lišta ukazuje linku, cíl a další zastávku
-    MHD.follow = i; $('follow').hidden = false; mhdFollowText(); closeCard();
+  function mhdFollow(i) {                                  // kliknutí na vozidlo: pohled jede za ním, lišta ukazuje linku, cíl a další zastávku, trasa spoje se nakreslí
+    MHD.follow = i; MHD.route = i; MHD.routeImg = null; $('follow').hidden = false; $('routeFit').hidden = false; mhdFollowText(); closeCard();
   }
+  const routeOff = () => { MHD.route = null; MHD.routeImg = null; $('routeFit').hidden = true; };
+  // trasa spoje v obrázku mapy: body tvaru do cílové zastávky, zastávky (vzdálenost, jméno, čas příjezdu), nejisté úseky (mhd.json "kvalita", když je)
+  function routeGeom(i) {
+    const t = MHD.trips[i], sh = MHD.shapes[t[1]], seq = t[4], end = seq[seq.length - 1], pts = [];
+    for (let k = 0; k < sh.w.length; k++) {
+      if (sh.len[k] > end + 1) break;
+      const [x, y] = sh.w[k]; pts.push([...toImg(x, y, gz(x, y)), sh.len[k]]);
+    }
+    const tim = new Map(); for (let k = 0; k < seq.length; k += 2) if (!tim.has(seq[k])) tim.set(seq[k], seq[k + 1]);
+    const stops = [];
+    for (let k = 0; k < t[6].length; k += 2) {
+      const d = tim.get(t[6][k + 1]); if (d === undefined) continue;
+      const o = shapePos(sh, d);
+      stops.push({ d, name: MHD.names[t[6][k]], t: t[3] + t[6][k + 1], img: [o.ix, o.iy] });
+    }
+    const bad = ((MHD.kvalita || {})[t[1]] || []).filter((q) => q[2] === 'n' || q[2] === 'r');
+    return { pts, stops, bad, typ: MHD.routes[t[0]][1] };
+  }
+  function drawRoute(sx, ox, oy, now) {                    // projetá část tlumená, nejistý úsek čárkovaně; jména zastávek při přiblížení, konečné vždy
+    const i = MHD.route; if (i === null || !MHD.trips) return;
+    const R = MHD.routeImg || (MHD.routeImg = routeGeom(i)), a = MHD.act.find((q) => q[0] === i);
+    const sNow = a && !a[2] ? trainS(MHD.trips[i], a[1] + (now / 1000 - MHD.t)) : 0;
+    const col = R.typ === 0 ? '#c4352b' : R.typ === 2 ? '#2f7d4f' : R.typ === 11 ? '#9b5fc0' : '#2f86d6';
+    const P = (q) => [ox + q[0] * sx, oy + q[1] * sx], isBad = (d) => R.bad.some((q) => d >= q[0] && d <= q[1]);
+    ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    for (const pass of [0, 1]) for (let k = 1; k < R.pts.length; k++) {   // obrys, pak barva
+      const p0 = R.pts[k - 1], p1 = R.pts[k], dm = (p0[2] + p1[2]) / 2;
+      ctx.setLineDash(pass && isBad(dm) ? [6, 6] : []);
+      ctx.strokeStyle = pass ? col : 'rgba(16,20,28,0.85)'; ctx.globalAlpha = dm < sNow ? 0.4 : 0.95; ctx.lineWidth = pass ? 4 : 7.5;
+      ctx.beginPath(); ctx.moveTo(...P(p0)); ctx.lineTo(...P(p1)); ctx.stroke();
+    }
+    ctx.setLineDash([]); ctx.font = '600 11px "Atkinson Hyperlegible", system-ui, sans-serif'; ctx.textBaseline = 'middle';
+    const hhmm = (v) => { v = ((v % 86400) + 86400) % 86400; return Math.floor(v / 3600) + ':' + String(Math.floor(v / 60) % 60).padStart(2, '0'); };
+    R.stops.forEach((z, k) => {
+      const [X, Y] = P(z.img), end = k === 0 || k === R.stops.length - 1;
+      ctx.globalAlpha = z.d < sNow - 5 ? 0.5 : 1; ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(16,20,28,0.9)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(X, Y, end ? 5.5 : 4, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+      if (sx > 0.45 || (end && sx > 0.06)) {
+        const txt = z.name.replace(/^[^,]+, /, '') + ' ' + hhmm(z.t), w = ctx.measureText(txt).width;
+        ctx.fillStyle = 'rgba(16,20,28,0.8)'; ctx.fillRect(X + 8, Y - 8, w + 8, 16); ctx.fillStyle = '#fff'; ctx.fillText(txt, X + 12, Y);
+      }
+    });
+    ctx.restore();
+  }
+  $('routeFit').addEventListener('click', () => {           // oddálit na celou trasu
+    if (MHD.route === null) return;
+    const R = MHD.routeImg || (MHD.routeImg = routeGeom(MHD.route));
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const [x, y] of R.pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    const m = Math.max(x1 - x0, y1 - y0) * 0.08 + 200;
+    MHD.follow = null;
+    viewer.viewport.fitBounds(new OpenSeadragon.Rect((x0 - m) / W, (y0 - m) / W, (x1 - x0 + 2 * m) / W, (y1 - y0 + 2 * m) / W));
+  });
   function mhdFollowText() {
-    const i = MHD.follow, a = MHD.act.find((q) => q[0] === i);
-    if (!a) { $('followTxt').textContent = 'Spoj dojel do cílové zastávky.'; MHD.follow = null; setTimeout(() => { if (MHD.follow === null) $('follow').hidden = true; }, 4000); return; }
+    const i = MHD.route ?? MHD.follow, a = MHD.act.find((q) => q[0] === i);
+    if (!a) { $('followTxt').textContent = 'Spoj dojel do cílové zastávky.'; MHD.follow = null; routeOff(); setTimeout(() => { if (MHD.follow === null && MHD.route === null) $('follow').hidden = true; }, 4000); return; }
     const t = MHD.trips[i], [line, typ] = MHD.routes[t[0]], z = t[6]; let next = '';
     for (let k = 0; k < z.length; k += 2) if (z[k + 1] >= a[1]) { next = MHD.names[z[k]]; break; }
     const b = document.createElement('b'); b.textContent = `${MHD_DRUH(typ)} ${line}`;
     const odj = a[2] ? ` · stojí na konečné, odjezd za ${Math.max(1, Math.round(a[2] / 60))} min` : next ? ` · další zastávka ${next}` : '';
     $('followTxt').replaceChildren(b, ` → ${MHD.names[t[5]]}`, odj);
   }
-  $('followStop').addEventListener('click', () => { MHD.follow = null; if (typeof PLANES !== 'undefined') PLANES.follow = null; $('follow').hidden = true; });
+  $('followStop').addEventListener('click', () => { MHD.follow = null; routeOff(); if (typeof PLANES !== 'undefined') PLANES.follow = null; $('follow').hidden = true; });
   viewer.addHandler('canvas-drag', () => {
-    if (MHD.follow !== null) { MHD.follow = null; $('follow').hidden = true; }
+    if (MHD.follow !== null) { MHD.follow = null; if (MHD.route === null) $('follow').hidden = true; }   // trasa zůstane nakreslená
     if (typeof PLANES !== 'undefined' && PLANES.follow !== null) { PLANES.follow = null; $('follow').hidden = true; }
   });
   function odstavPos(trip, ceka, poradi) {                 // tramvaj na konečné, kde kolej za zastávkou slepě končí: z nástupiště dozadu na konec koleje, před odjezdem zpátky
@@ -523,6 +576,7 @@
   function stopsReady() {
     if (!MHD.stops) return;
     MHD.stopPts = MHD.stops.map(([n, x, y, kd]) => { const [ix, iy] = toImg(x, y, gz(x, y)); return { n, x, y, kd, ix, iy }; });
+    $('l-stops-row').hidden = false;
     const seen = new Set();
     for (const s of MHD.stopPts) {
       if (seen.has(s.n)) continue; seen.add(s.n);
@@ -544,6 +598,7 @@
     return out.sort((a, b) => a[0] - b[0]);
   }
   function showStop(s) {
+    state.selStop = s;                                     // zvýrazní se na mapě (kroužek)
     const hm = (dt) => { const p = pragueNow(), v = Math.round((p.s + dt) / 60) % 1440; return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`; };
     const za = (dt) => (dt < 60 ? 'teď' : `za ${Math.round(dt / 60)} min`);
     const groups = new Map();
@@ -552,9 +607,9 @@
       if (!groups.has(key)) groups.set(key, []);
       if (groups.get(key).length < 3) groups.get(key).push(dt);
     }
-    const rows = [...groups.entries()].sort((a, b) => a[1][0] - b[1][0]).slice(0, 10).map(([k, v]) => [k, `${hm(v[0])} (${za(v[0])})` + v.slice(1).map((d) => ', ' + hm(d)).join('')]);
+    const rows = [...groups.entries()].sort((a, b) => a[1][0] - b[1][0]).slice(0, 10).map(([k, v]) => [k, [`${hm(v[0])} (${za(v[0])})`, ...v.slice(1).map((d) => hm(d))]]);
     showCard({ title: `Zastávka ${MHD.names[s.n]}`, text: rows.length ? 'Odjezdy podle jízdního řádu, bez zpoždění.' : 'V příští hodině odtud podle jízdního řádu nic nejede.',
-      rows, lon: s.x / cam.kx + cam.lon0, lat: s.y / cam.ky + cam.lat0 });
+      rows, dep: true, lon: s.x / cam.kx + cam.lon0, lat: s.y / cam.ky + cam.lat0 });
   }
   const stopAt = (ix, iy) => {                              // zastávka pod kliknutím (do ~20 px na obrazovce, nejméně 6 m)
     if (!MHD.stopPts) return null;

@@ -76,6 +76,7 @@
       <label><input type="checkbox" id="l-smoke" checked> Kouř z&nbsp;komínů</label>
       <label hidden><input type="checkbox" id="l-xmas"> Vánoční výzdoba</label>
       <label><input type="checkbox" id="l-hover" checked> Zvýraznit budovy</label>
+      <label id="l-stops-row" hidden><input type="checkbox" id="l-stops"> Zastávky MHD</label>
     </div>
   </div>
 
@@ -93,7 +94,7 @@
   </details>
 </aside>
 
-<div class="follow" id="follow" hidden aria-live="polite"><span id="followTxt"></span><button class="px-btn" id="followStop" type="button" aria-label="Přestat sledovat">×</button></div>
+<div class="follow" id="follow" hidden aria-live="polite"><span id="followTxt"></span><button class="px-btn" id="routeFit" type="button" hidden style="width:auto;padding:0 8px">Celá trasa</button><button class="px-btn" id="followStop" type="button" aria-label="Přestat sledovat">×</button></div>
 <section class="card" id="card" hidden aria-live="polite">
   <div class="grab" id="grab" aria-hidden="true"></div>
   <button class="px-btn close" id="cardClose" type="button" aria-label="Zavřít">×</button>

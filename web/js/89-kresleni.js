@@ -47,6 +47,22 @@
       ctx.closePath(); ctx.stroke();
     }
     drawUlice(sx, ox, oy, cw, ch, dpr);                   // názvy ulic (87-nazvy-ulic.js), pod vozidly a čísly linek
+    // zastávky MHD: značky (volba Zastávky MHD), jména při přiblížení; vybraná zastávka má pulzující kroužek vždy
+    if (MHD.stopPts && sx > 0.12 && ($('l-stops').checked || state.selStop)) {
+      const all = $('l-stops').checked, sel = state.selStop, r0 = Math.max(3.5, Math.min(9, 5.5 * sx + 2)), nm = new Set();
+      ctx.lineWidth = Math.max(1, r0 / 4); ctx.textAlign = 'center'; ctx.font = `600 ${Math.round(Math.max(10, Math.min(14, 9 * sx + 6)))}px system-ui, sans-serif`;
+      for (const z of MHD.stopPts) {
+        const isSel = sel && z.n === sel.n;
+        if (!(all || isSel) || !vis(z.ix, z.iy, 20)) continue;
+        const x = ox + z.ix * sx, y = oy + z.iy * sx;
+        ctx.fillStyle = z.kd === 0 ? '#d94a38' : '#2a6fb5'; ctx.strokeStyle = '#fff';
+        ctx.beginPath(); ctx.arc(x, y - r0, r0, 0, 6.2832); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x, y - r0 * 0.1); ctx.lineTo(x, y); ctx.stroke();
+        if (isSel) { const k = (t * 1.4) % 1; ctx.strokeStyle = `rgba(242,198,109,${(1 - k).toFixed(2)})`; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(x, y - r0, r0 + 4 + k * 14, 0, 6.2832); ctx.stroke(); ctx.lineWidth = Math.max(1, r0 / 4); }
+        if (sx > 0.45 && !nm.has(z.n)) { nm.add(z.n); const txt = MHD.names[z.n]; ctx.strokeStyle = 'rgba(20,24,32,.85)'; ctx.lineWidth = 3; ctx.strokeText(txt, x, y - r0 * 2 - 5); ctx.fillStyle = '#fff'; ctx.fillText(txt, x, y - r0 * 2 - 5); ctx.lineWidth = Math.max(1, r0 / 4); }
+      }
+      ctx.textAlign = 'start';
+    }
     // doprava
     if ($('l-traffic').checked) {
       if (now - tShareT > 5000 || tShareCount !== cars.length || tShareSlow !== (eco || SLOW)) {
@@ -89,7 +105,7 @@
       }
       if (MHD.on) {
         const ns = Math.floor(now / 1000);
-        if (ns !== MHD.t) { MHD.t = ns; MHD.act = mhdActive(); updateXings(); if (MHD.follow !== null) mhdFollowText(); }
+        if (ns !== MHD.t) { MHD.t = ns; MHD.act = mhdActive(); updateXings(); if (MHD.follow !== null || MHD.route !== null) mhdFollowText(); }
         MHD.drawn = [];
         if (MHD.follow !== null) {
           const a = MHD.act.find((q) => q[0] === MHD.follow);
@@ -247,6 +263,7 @@
     }
     // sypače a pluhy ŘSD (živě, jen s "pluhy": true v mesto.json)
     if (PLOW.on && $('l-pluhy').checked) stepDrawPlows(dt, sx, ox, oy, vis, t, now);
+    if (MHD.route !== null) drawRoute(sx, ox, oy, now);   // trasa vybraného spoje MHD: nad mapou i při oddálení
     runFrameLayer('world', frameView, t);
     // svíčky na hřbitovech: večer; kolem Dušiček (30. 10.–10. 11.) skoro na každém hrobě, na Štědrý den na většině, jinak jen tu a tam.
     // Hřbitovní lampy jsou červené, žluté a bílé; plamen se mihotá, při přiblížení kolem něj malá záře
