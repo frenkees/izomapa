@@ -10,16 +10,38 @@
   // f / r = čelo vpředu / vzadu; deck 2 = patrový; loco = bez bočních oken. Výběr: "vlak" v mesto.json.
   const CD = { low: [18, 63, 115], body: [31, 106, 176], band: [232, 240, 246], roof: [120, 128, 136] };
   const CDW = { low: [31, 95, 168], body: [236, 240, 242], band: [31, 95, 168], roof: [150, 156, 162] };
+  const CDR = { low: [150, 32, 42], body: [236, 238, 240], band: [190, 38, 50], roof: [128, 132, 138] };   // bílá s červeným pruhem (RegioFox, odhad)
+  const ARR = { low: [0, 92, 102], body: [0, 158, 168], band: [236, 242, 242], roof: [128, 140, 144] };    // Arriva
   const TRAINS = {
     regiopanter: { h: 4.2, ...CD, nose: 2.6, top: 'box', cars: [{ len: 26.2, f: 1 }, { len: 26.2, r: 1 }] },      // RegioPanter, 52,9 m
     regioshark: { h: 3.9, ...CD, nose: 2.2, top: 'box', cars: [{ len: 21.6, f: 1 }, { len: 21.6, r: 1 }] },       // řada 844, 43,73 m
     regionova: { h: 3.8, ...CD, nose: 1.2, top: 'box', cars: [{ len: 14, f: 1 }, { len: 14, r: 1 }] },            // řada 814, 28,44 m
     vuz810: { h: 3.7, ...CDW, nose: 0.7, cars: [{ len: 13.97, f: 1, r: 1 }] },                                    // řada 810, 13,97 m
+    os163: { h: 4.2, ...CD, nose: 1.4, cars: [{ len: 16.8, f: 1, loco: 1, top: 'panto' }, { len: 24.5 }, { len: 24.5 }, { len: 24.5, r: 1 }] },   // lokomotiva 163 a tři vozy
+    regioshark2: { h: 3.9, ...CD, nose: 2.2, top: 'box', cars: [{ len: 21.6, f: 1 }, { len: 21.6, r: 1 }, { len: 21.6, f: 1 }, { len: 21.6, r: 1 }] },   // dvě jednotky 844, 87,5 m
+    regionova2: { h: 3.8, ...CD, nose: 1.2, top: 'box', cars: [{ len: 14, f: 1 }, { len: 14, r: 1 }, { len: 14, f: 1 }, { len: 14, r: 1 }] },       // dvě jednotky 814, 57 m
+    regiopanter3: { h: 4.2, ...CD, nose: 2.6, top: 'box', cars: [{ len: 17.7, f: 1 }, { len: 17.7 }, { len: 17.7, r: 1 }] },   // třídílný RegioPanter (640), asi 53 m
+    regiofox: { h: 3.9, ...CDR, nose: 2.2, top: 'box', cars: [{ len: 20.8, f: 1 }, { len: 20.8, r: 1 }] },        // řada 847 RegioFox, dvoučlánková motorová jednotka
+    dmu845: { h: 3.9, ...ARR, nose: 1.6, top: 'box', cars: [{ len: 22.7, f: 1 }, { len: 22.7, r: 1 }] },          // řada 845 (Arriva), dvoučlánková motorová jednotka, ~45 m
+    rychlik4: { h: 4.1, ...CD, nose: 1.4, cars: [{ len: 18, f: 1, loco: 1, top: 'panto' }, { len: 26.4 }, { len: 26.4 }, { len: 26.4 }, { len: 26.4 }, { len: 26.4 }] },   // lokomotiva a pět vozů
+    flirt: { h: 4.2, ...ARR, nose: 2.4, top: 'box', cars: [{ len: 19.4, f: 1 }, { len: 19.4 }, { len: 19.4, r: 1 }] },                  // třídílná jednotka FLIRT, 58 m (Arriva)
     cityelefant: { h: 4.6, ...CDW, nose: 1.6, deck: 2, top: 'panto', cars: [{ len: 26.2, f: 1 }, { len: 26.2 }, { len: 26.2, r: 1 }] },   // řada 471, 79,2 m
     rychlik: { h: 4.1, ...CD, nose: 1.4, cars: [{ len: 18, f: 1, loco: 1, top: 'panto' }, { len: 26.4 }, { len: 26.4 }, { len: 26.4 }] },   // lokomotiva 380 (18 m) a vozy
   };
+  // nákladní vlaky (náhodné průjezdy, nastroje/vlaky.py): lokomotiva a vozy s nákladem (fr: coal, cont, auto, tank, wood)
+  const FRE = { low: [58, 44, 44], body: [176, 40, 42], band: [232, 232, 226], roof: [122, 122, 126] };
+  const FRB = { low: [40, 48, 70], body: [34, 74, 132], band: [232, 232, 226], roof: [122, 122, 126] };
+  const wagons = (n, spec) => Array.from({ length: n }, (_, i) => ({ ...spec, v: i }));
+  Object.assign(TRAINS, {
+    f_uhli: { h: 4.2, ...FRE, nose: 1.4, cars: [{ len: 16.5, f: 1, r: 1, loco: 1 }, ...wagons(14, { len: 14.5, fr: 'coal' })] },
+    f_auta: { h: 4.2, ...FRE, nose: 1.4, cars: [{ len: 16.8, f: 1, r: 1, loco: 1, top: 'panto' }, ...wagons(8, { len: 27, fr: 'auto' })] },
+    f_kont: { h: 4.2, ...FRB, nose: 1.4, cars: [{ len: 18.5, f: 1, r: 1, loco: 1, top: 'panto' }, ...wagons(12, { len: 19.7, fr: 'cont' })] },
+    f_cist: { h: 4.2, ...FRE, nose: 1.4, cars: [{ len: 16.5, f: 1, r: 1, loco: 1 }, ...wagons(12, { len: 15.5, fr: 'tank' })] },
+    f_drevo: { h: 4.2, ...FRE, nose: 1.4, cars: [{ len: 16.5, f: 1, r: 1, loco: 1 }, ...wagons(10, { len: 16, fr: 'wood' })] },
+  });
   const VLAK = {{VLAK}};
-  const trainOf = (line) => TRAINS[VLAK.linky[line]] ? VLAK.linky[line] : TRAINS[VLAK.vychozi] ? VLAK.vychozi : 'regionova';
+  const MHD_BARVY = {{MHD_BARVY}};
+  const trainOf = (line) => { const k = MHD.tm && MHD.tm.get(line); return TRAINS[k] ? k : TRAINS[VLAK.linky[line]] ? VLAK.linky[line] : TRAINS[VLAK.vychozi] ? VLAK.vychozi : 'regionova'; };   // model z jízdního řádu (5. položka trasy v mhd.json), jinak podle mesto.json
   // col = "kabina|nástavba|druh" (druh: box = skříň, tarp = plachta)
   function truckFaces(ctx) {
     const { R, box, faces, fx_, fy_, sxv, syv, vis, sun, l, w, col, snow } = ctx;
@@ -173,6 +195,32 @@
       parts.sort((a, b) => a.k - b.k);
       for (const e of parts) for (const f of e.f) f();
       wh(near);
+    } else if (isBus === 4 && TRAINS[col.split('|')[1]].cars[+col.split('|')[2]].fr) {      // nákladní vůz
+      const [, name, ci] = col.split('|'), car = TRAINS[name].cars[+ci], fwd = vis(fx_, fy_), parts = [], v = car.v || 0;
+      const Pt = (s0, s1, t0, t1, z0, z1, rgb, top, layer = 1) => parts.push({ k: layer * 1000 + (fwd ? 1 : -1) * (s0 + s1) / 2, f: [() => box(s0, s1, t0, t1, z0, z1, rgb, top || rgb)] });
+      const CONT = [[30, 78, 150], [176, 44, 40], [150, 156, 162], [40, 120, 80], [226, 142, 34], [60, 64, 72], [236, 236, 230]];
+      const CARS = [[236, 236, 232], [120, 124, 132], [24, 26, 30], [176, 36, 32], [44, 70, 140], [170, 172, 176], [60, 110, 80], [200, 180, 130]];
+      for (const s_ of [-l + 2.6, l - 2.6]) Pt(s_ - 1.3, s_ + 1.3, -w * 0.8, w * 0.8, 0.12, 0.7, DARK, DARK, 0);   // podvozky
+      Pt(-l, l, -w * 0.95, w * 0.95, 0.6, 0.95, [52, 50, 52], [52, 50, 52], 0);                                 // rám
+      if (car.fr === 'coal') {
+        Pt(-l + 0.2, l - 0.2, -w, w, 0.95, 2.8, [84, 70, 62], [84, 70, 62]); Pt(-l + 0.5, l - 0.5, -w * 0.82, w * 0.82, 2.8, 3.2, [24, 24, 28], [24, 24, 28], 2);
+      } else if (car.fr === 'cont') {
+        const c = CONT[(v * 3 + 1) % CONT.length], c2 = CONT[(v * 5 + 4) % CONT.length];
+        Pt(-l + 0.4, -0.25, -w * 0.97, w * 0.97, 0.95, 3.55, c, c); Pt(0.25, l - 0.4, -w * 0.97, w * 0.97, 0.95, 3.55, c2, c2);
+      } else if (car.fr === 'auto') {
+        for (const z0 of [0.95, 2.45]) {
+          Pt(-l + 0.2, l - 0.2, -w * 0.95, w * 0.95, z0 - 0.1, z0 + 0.1, [150, 154, 160], [150, 154, 160], 0);
+          for (let k = 0; k < 5; k++) { const s0 = -l + 0.7 + k * (2 * l - 1.4) / 5, cc = CARS[(v * 3 + k * 5 + (z0 > 1 ? 2 : 0)) % CARS.length]; Pt(s0, s0 + 4.3, -w * 0.72, w * 0.72, z0 + 0.1, z0 + 1.45, cc, cc, 1); }
+        }
+        Pt(-l + 0.2, l - 0.2, -w * 0.97, -w * 0.9, 0.95, 3.9, [176, 180, 186], [176, 180, 186], 2); Pt(-l + 0.2, l - 0.2, w * 0.9, w * 0.97, 0.95, 3.9, [176, 180, 186], [176, 180, 186], 2);
+      } else if (car.fr === 'tank') {
+        Pt(-l + 0.4, l - 0.4, -w * 0.88, w * 0.88, 1.0, 3.55, [214, 216, 212], [214, 216, 212]); Pt(-l + 0.4, l - 0.4, -w * 0.89, w * 0.89, 2.1, 2.45, [44, 46, 52], [44, 46, 52], 2);
+      } else if (car.fr === 'wood') {
+        Pt(-l + 0.3, l - 0.3, -w * 0.85, w * 0.85, 0.95, 2.7, [112, 82, 54], [140, 106, 70]);
+        for (const s_ of [-l * 0.7, 0, l * 0.7]) Pt(s_ - 0.1, s_ + 0.1, -w, w, 0.95, 2.9, [60, 60, 64], [60, 60, 64], 2);
+      }
+      parts.sort((a, b) => a.k - b.k);
+      for (const e of parts) for (const f of e.f) f();
     } else if (isBus === 4) {
       const [, name, ci] = col.split('|'), M = TRAINS[name], car = M.cars[+ci], h = M.h, nf = car.f ? M.nose : 0, nr = car.r ? M.nose : 0, ROOF = snow || M.roof;
       for (const s_ of [-l + 3.4, l - 3.4]) box(s_ - 1.4, s_ + 1.4, -w * 0.82, w * 0.82, 0.12, 0.6, DARK);       // podvozky
@@ -239,9 +287,11 @@
     } else if (isBus === 3) {
       truckFaces({ R, box, faces, fx_, fy_, sxv, syv, vis, sun, l, w, col, snow });
     } else if (isBus) {                                                     // autobus: bílý, zelený a žlutý pruh, tmavá okna, žluté čelo
-      const WH = [238, 238, 234], GR = [30, 140, 84], YL = [244, 196, 28], GL = [40, 44, 52], DOOR = [54, 58, 66], ROOF = snow || [222, 224, 220];
+      // barvy dopravce: "mhd": {"barvy": {"karoserie", "spodek", "pruh", "celo", "strecha"}} v mesto.json; col 'trol' = trolejbus se sběrači
+      const LV = MHD_BARVY || {}, hx = (q, d) => (typeof q === 'string' && q[0] === '#' ? rgbOf(q) : d);
+      const WH = hx(LV.karoserie, [238, 238, 234]), GR = hx(LV.spodek, [30, 140, 84]), YL = hx(LV.celo, [244, 196, 28]), MID = hx(LV.pruh, YL), GL = [40, 44, 52], DOOR = [54, 58, 66], ROOF = snow || hx(LV.strecha, [222, 224, 220]);
       const ch = 0.45, fp = [[-l + ch, -w], [l - ch, -w], [l, -w + ch], [l, w - ch], [l - ch, w], [-l + ch, w], [-l, w - ch], [-l, -w + ch]];
-      const bands = [[0.3, 0.55, GR], [0.55, 0.95, YL], [0.95, 1.15, WH], [1.15, 2.7, null], [2.7, 3.0, WH]];
+      const bands = [[0.3, 0.55, GR], [0.55, 0.95, MID], [0.95, 1.15, WH], [1.15, 2.7, null], [2.7, 3.0, WH]];
       const Q = (A, B, z0, z1, rgb, d) => faces.push([[R(A[0], A[1], z0), R(B[0], B[1], z0), R(B[0], B[1], z1), R(A[0], A[1], z1)], lit(rgb, d)]);
       for (let i = 0; i < fp.length; i++) {
         const A = fp[i], B = fp[(i + 1) % fp.length], es = B[0] - A[0], et = B[1] - A[1], el = Math.hypot(es, et), ns = et / el, nt = -es / el;
@@ -269,6 +319,11 @@
       }
       faces.push([ip.map(([s_, t_]) => R(s_, t_, rz + 0.08)), lit(ROOF, sun(0, 0, 1))]);
       box(-l * 0.45, l * 0.55, -0.75, 0.75, rz + 0.08, rz + 0.38, WH, ROOF);   // baterie na střeše
+      if (col === 'trol') for (const tt of [-0.45, 0.45]) {                  // trolejbus: dva sběrače šikmo dozadu k trolejím (5,6 m nad vozovkou)
+        const s0 = l * 0.25, s1 = -l * 0.55, h0 = rz + 0.38, h1 = 5.6, d = 0.09, POLE = [40, 42, 46];
+        faces.push([[R(s0, tt, h0), R(s1, tt, h1), R(s1, tt, h1 + d * 2), R(s0, tt, h0 + d * 2)], lit(POLE, 0.3)]);
+        faces.push([[R(s0, tt - d, h0 + d), R(s1, tt - d, h1 + d), R(s1, tt + d, h1 + d), R(s0, tt + d, h0 + d)], lit(POLE, 0.6)]);
+      }
       box(l - 1.1, l - 0.35, -0.95, 0.95, rz, rz + 0.18, YL);                  // žlutá čepice čela
     } else {
       box(-l, l, -w * 0.98, w * 0.98, 0.3, 1.0, c);

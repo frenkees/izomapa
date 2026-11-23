@@ -106,13 +106,13 @@
             else { const L_ = Math.hypot(o.dx, o.dy) || 1, x_ = o.x - o.dx / L_ * d_, y_ = o.y - o.dy / L_ * d_, z_ = gz(x_, y_), [ix_, iy_] = toImg(x_, y_, z_); o = { ...o, x: x_, y: y_, z: z_, ix: ix_, iy: iy_ }; }
           }
           if (!vis(o.ix, o.iy, 120) || !cam.grounds.some((q) => Math.abs(o.x - q.cx) <= cam.half && Math.abs(o.y - q.cy) <= cam.half)) continue;   // mimo čtverce mapy
-          const shown_ = typ === 0 ? drawVehicle(o, 15, 2.5, 't3', sx, ox, oy, night, 2) : typ === 2 ? drawTrain(trip, el + (now / 1000 - ns), line, sx, ox, oy, night) : drawVehicle(o, 12, 2.5, '#e9e6dc', sx, ox, oy, night, true);
+          const shown_ = typ === 0 ? drawVehicle(o, 15, 2.5, 't3', sx, ox, oy, night, 2) : typ === 2 ? drawTrain(trip, ceka ? 0 : el + (now / 1000 - ns), line, sx, ox, oy, night) : drawVehicle(o, 12, 2.5, typ === 11 ? 'trol' : '#e9e6dc', sx, ox, oy, night, true);
           if (shown_) for (const q of typ === 2 ? drawTrain.pts : [o]) MHD.drawn.push([Math.round(ox + q.ix * sx), Math.round(oy + q.iy * sx) - Math.round(8 * sx), i]);
           if (shown_ && (sx > 0.55 || i === MHD.follow)) {     // číslo linky nad vozidlem
             const h = gz(o.x, o.y), [tx, ty] = toImg(o.x, o.y, h + 6), X_ = Math.round(ox + tx * sx), Y_ = Math.round(oy + ty * sx);
             ctx.font = '700 13px "Atkinson Hyperlegible", system-ui, sans-serif'; const tw = Math.ceil(ctx.measureText(line).width) + 10;
             ctx.fillStyle = '#16191f'; ctx.fillRect(X_ - tw / 2 - 1, Y_ - 10, tw + 2, 19);
-            ctx.fillStyle = typ === 0 ? '#c4352b' : typ === 2 ? '#2f7d4f' : '#1f6fb2'; ctx.fillRect(X_ - tw / 2, Y_ - 9, tw, 17);
+            ctx.fillStyle = typ === 0 ? '#c4352b' : typ === 2 ? '#2f7d4f' : typ === 11 ? '#7b3fa0' : '#1f6fb2'; ctx.fillRect(X_ - tw / 2, Y_ - 9, tw, 17);
             if (i === MHD.follow) { ctx.strokeStyle = '#f2c66d'; ctx.lineWidth = 2; ctx.strokeRect(X_ - tw / 2 - 2, Y_ - 11, tw + 4, 21); }
             ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(line, X_, Y_); ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
           }

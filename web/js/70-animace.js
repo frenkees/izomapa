@@ -445,7 +445,7 @@
     m.dur = m.trips.map((t) => t[4][t[4].length - 2]);
     m.maxDur = Math.max(...m.dur);
     m.maxWait = m.trips.reduce((x, t) => Math.max(x, t[7] || 0), 0);   // čekání na konečné před odjezdem (mhd.py)
-    Object.assign(MHD, m, { on: true });
+    Object.assign(MHD, m, { on: true }); MHD.tm = new Map((m.routes || []).filter((r) => r[1] === 2 && r[4]).map((r) => [r[0], r[4]]));   // model vlaku linky (nastroje/vlaky*.py)
     stopsReady();
   }).catch(() => {});
   const pragueNow = () => {                                // datum, den v týdnu (po = 0) a sekundy od půlnoci (čas v Česku)
@@ -491,6 +491,7 @@
     }
     return out;
   }
+  const MHD_DRUH = (typ) => (typ === 0 ? 'Tramvaj' : typ === 2 ? 'Vlak' : typ === 11 ? 'Trolejbus' : 'Autobus');   // route_type GTFS (11 = trolejbus)
   function mhdFollow(i) {                                  // kliknutí na vozidlo: pohled jede za ním, lišta ukazuje linku, cíl a další zastávku
     MHD.follow = i; $('follow').hidden = false; mhdFollowText(); closeCard();
   }
@@ -499,7 +500,7 @@
     if (!a) { $('followTxt').textContent = 'Spoj dojel do cílové zastávky.'; MHD.follow = null; setTimeout(() => { if (MHD.follow === null) $('follow').hidden = true; }, 4000); return; }
     const t = MHD.trips[i], [line, typ] = MHD.routes[t[0]], z = t[6]; let next = '';
     for (let k = 0; k < z.length; k += 2) if (z[k + 1] >= a[1]) { next = MHD.names[z[k]]; break; }
-    const b = document.createElement('b'); b.textContent = `${typ === 0 ? 'Tramvaj' : typ === 2 ? 'Vlak' : 'Autobus'} ${line}`;
+    const b = document.createElement('b'); b.textContent = `${MHD_DRUH(typ)} ${line}`;
     const odj = a[2] ? ` · stojí na konečné, odjezd za ${Math.max(1, Math.round(a[2] / 60))} min` : next ? ` · další zastávka ${next}` : '';
     $('followTxt').replaceChildren(b, ` → ${MHD.names[t[5]]}`, odj);
   }
@@ -547,7 +548,7 @@
     const za = (dt) => (dt < 60 ? 'teď' : `za ${Math.round(dt / 60)} min`);
     const groups = new Map();
     for (const [dt, t] of stopDepartures(s.n)) {
-      const [line, typ] = MHD.routes[t[0]], key = `${typ === 0 ? 'Tramvaj' : 'Autobus'} ${line} → ${MHD.names[t[5]]}`;
+      const [line, typ] = MHD.routes[t[0]], key = `${MHD_DRUH(typ)} ${line} → ${MHD.names[t[5]]}`;
       if (!groups.has(key)) groups.set(key, []);
       if (groups.get(key).length < 3) groups.get(key).push(dt);
     }
@@ -566,7 +567,10 @@
   function mhdPos(trip, el, T = 0, off = 0) {                              // kde na trase je spoj el sekund po výjezdu
     const q = trip[4]; let i = 2; while (i < q.length - 2 && q[i] < el) i += 2;
     const f = Math.max(0, Math.min(1, (el - q[i - 2]) / ((q[i] - q[i - 2]) || 1)));
-    const sh = MHD.shapes[trip[1]], s0 = Math.min(sh.L, q[i - 1] + (q[i + 1] - q[i - 1]) * f), s = Math.max(0, Math.min(sh.L, Math.max(T / 2, Math.min(sh.L - T / 2, s0)) + off));   // T: délka vlaku, off: článek od středu
+    // T: délka vlaku, off: článek od středu. Vlak stojí na zastávce středem (střed nástupiště), takže na konci trasy přesahuje o půl délky
+    // za konec (shapePos pokračuje rovně), ať stojí celý u nástupiště; autobusy a tramvaje se drží uvnitř trasy
+    const vl = MHD.routes[trip[0]][1] === 2;
+    const sh = MHD.shapes[trip[1]], s0 = Math.min(sh.L, q[i - 1] + (q[i + 1] - q[i - 1]) * f), s = vl ? Math.max(0, Math.min(sh.L, s0)) + off : Math.max(0, Math.min(sh.L, Math.max(T / 2, Math.min(sh.L - T / 2, s0)) + off));
     return shapePos(sh, s);
   }
   // poloha a směr vozu v metru s trasy. Směr z bodů před a za vozidlem: trasy z GTFS mívají u zastávek krátké zalomené úseky
@@ -575,15 +579,20 @@
   // trasy se počítá jen skutečná délka úseku (jinak by na konečné stál vůz šejdrem). Na rovné trase zůstane ±4 m.
   function shapePos(sh, s) {
     const L = sh.len;
-    const at = (s) => {
+    const at0 = (s) => {
       let k = 1; while (k < L.length - 1 && L[k] < s) k++;
       const a = sh.w[k - 1], b = sh.w[k], u = Math.max(0, Math.min(1, (s - L[k - 1]) / ((L[k] - L[k - 1]) || 1)));
       return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
     };
+    const ex = s < 0 || s > sh.L, at = (s) => {              // vlak za koncem / před začátkem trasy: rovně podle směru posledních 8 m
+      if (s >= 0 && s <= sh.L) return at0(s);
+      const e = s < 0 ? 0 : sh.L, p = at0(e), q = at0(s < 0 ? Math.min(sh.L, 8) : Math.max(0, sh.L - 8)), dx = p[0] - q[0], dy = p[1] - q[1], d = Math.hypot(dx, dy) || 1, o = Math.abs(s - e);
+      return [p[0] + dx / d * o, p[1] + dy / d * o];
+    };
     const [x, y] = at(s);
     let p0, p1, dx, dy;
     for (const w of [4, 13, 22]) {
-      const sa = Math.max(0, s - w), sb = Math.min(sh.L, s + w);
+      const sa = ex ? s - w : Math.max(0, s - w), sb = ex ? s + w : Math.min(sh.L, s + w);
       p0 = at(sa); p1 = at(sb); dx = p1[0] - p0[0]; dy = p1[1] - p0[1];
       if (dx * dx + dy * dy > (0.8 * (sb - sa)) ** 2) break;
     }
