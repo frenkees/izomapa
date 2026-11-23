@@ -140,7 +140,6 @@
   "potoky": false,
   "letadla": false,
   "doprava_here": true,
-  "chodci": false,
   "teren_prevyseni": 1.6,
   "dalsi_zdroje": [
     {
