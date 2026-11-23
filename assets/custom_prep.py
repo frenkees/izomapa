@@ -920,3 +920,38 @@ if HOOK == 'props':
             zp = Polygon([to_local(lo, la) for la, lo in pb['q']])
             for b in buildings:
                 if b.get('dn') != d['name'] and len(b['p']) >= 3 and zp.contains(Polygon(b['p']).centroid): b['rc'] = list(pb['rc'])
+
+# ---------------- varianta „Plachta“ (hypotetické sídliště podle urbanistické studie) ----------------
+# IZO_PLACHTA=1 + assets/plachta_studie.json (vyrábí ../skripty/plachta_studie.py), spouští ../skripty/plachta.sh. Scéna jde do build/c<i>_<j>_plachta/.
+# Fáze (volání _hook v prep.py): init (UP, OBL, OUT), roads (lesní cesty v zóně pryč), props_extra (lampy, lavičky, auta na parkovištích), lamps (lampy po filtru pasportu).
+_PLACHTA = os.environ.get('IZO_PLACHTA') == '1' and os.path.exists('assets/plachta_studie.json')
+if _PLACHTA and HOOK == 'init':
+    # budovy přes custom_bld, trávník a atletický ovál přes plochy, v zóně náhodné stromy pryč a místo nich uliční stromořadí (oblast)
+    _PS = json.load(open('assets/plachta_studie.json', encoding='utf-8'))
+    UP['custom_bld'] = list(UP.get('custom_bld', [])) + [
+        {'id': b['id'], 'poly': b['poly'], 'h': b['h'], 'cls': b['cls'], 'r': 'flat', 'wc': b['wc'], 'rc': b['rc']} for b in _PS['budovy']]
+    UP['plochy'] = list(UP.get('plochy', [])) + _PS['plochy']
+    UP['hriste'] = list(UP.get('hriste', [])) + _PS.get('hriste', [])
+    OBL['plachta_studie'] = {'poly': _PS['zona'], 'trees': _PS['stromy'], 'b': {}, 'b_auto': {}}
+    OUT = geo.chunk_dir(CHUNK) + '_plachta'
+    os.makedirs(OUT, exist_ok=True)
+
+if _PLACHTA and HOOK == 'roads':        # sídliště nahrazuje dnešní lesní cesty v zóně
+    _zp = Polygon([to_local(lo, la) for la, lo in _PS['zona']])
+    roads = [r_ for r_ in roads if not (r_[2] in ('track', 'path', 'footway', 'cycleway', 'steps', 'bridleway') and r_[1].intersects(_zp))]
+
+if _PLACHTA and HOOK == 'props_extra':  # okolí sídliště: lavičky, koše, zastávky, značky, auta na parkovištích (lampy až ve fázi lamps)
+    for _k, _lst in (_PS.get('props') or {}).items():
+        if _k == 'lamp': continue
+        props.setdefault(_k, [])
+        for _la, _lo, _a in _lst:
+            _x, _y = (float(v) for v in to_local(_lo, _la))
+            if AREA.contains(Point(_x, _y)): props[_k].append([_x, _y, float(ground(_x, _y)), _a])
+    for _la, _lo, _a, _ci in _PS.get('auta') or []:
+        _x, _y = (float(v) for v in to_local(_lo, _la))
+        if AREA.contains(Point(_x, _y)): cars.append((_x, _y, _a, _ci))
+
+if _PLACHTA and HOOK == 'lamps':        # lampy sídliště (po filtru pasportu, aby je nesmazal)
+    for _la, _lo, _a in (_PS.get('props') or {}).get('lamp', []):
+        _x, _y = (float(v) for v in to_local(_lo, _la))
+        if AREA.contains(Point(_x, _y)): props['lamp'].append([round(_x, 3), round(_y, 3), round(float(ground(_x, _y)), 3), _a])
