@@ -1,0 +1,12 @@
+{
+ "pozn": "Letiště Hradec Králové (LKHK). Dráhy: OSM/Overture (ref, délka, šířka, povrch; zdroj OSM uhul:ortofoto), ověřeno proti ortofotu ČÚZK. Aktivní okruh podle VFR manuálu AIP ČR (15R pravý, 33L levý). Stání odhadnuta z ortofota (letadla před hangáry aeroklubu). Provoz letadel je ilustrační (vymyšlený).",
+ "drahy": [
+  {"ref": "15L/33R", "a": [50.262979, 15.838072], "b": [50.243424, 15.85239], "sirka": 60, "povrch": "asfalt"},
+  {"ref": "15R/33L", "a": [50.258447, 15.839942], "b": [50.251942, 15.844706], "sirka": 25, "povrch": "trava"}
+ ],
+ "aktivni": {"draha": "15R/33L", "od": "b", "okruh": "levy"},
+ "odstavna": [[50.24463, 15.844836], [50.244645, 15.844592], [50.243129, 15.844383], [50.243118, 15.844611], [50.243142, 15.844605], [50.244533, 15.844802]],
+ "stani": [[50.24458, 15.84468], [50.24431, 15.84466], [50.24403, 15.84464], [50.243785, 15.84462]],
+ "letadla": [{"typ": "c172", "stani": 0}, {"typ": "ul", "stani": 1}, {"typ": "c172", "stani": 2}, {"typ": "ul", "stani": 3, "leta": false}],
+ "vyska_okruhu": 110
+}
