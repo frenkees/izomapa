@@ -143,6 +143,9 @@
   "teren_prevyseni": 1.6,
   "dalsi_zdroje": [
     {
+      "text": "Provoz letadel na letišti je ilustrační (vymyšlený), dráhy a plochy podle OpenStreetMap a ortofota ČÚZK"
+    },
+    {
       "text": "povrchy ulic, dopravní značení, stromy, zeleň, veřejné osvětlení a nábřežní zdi © Statutární město Hradec Králové (pasport komunikací, pasport zeleně, DTMM)",
       "url": "https://geoportal.mmhk.cz/"
     },
