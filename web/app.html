@@ -199,6 +199,10 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
 .card .report summary { cursor: pointer; font-size: .82rem; color: var(--muted); }
 .card .report form { display: grid; gap: 6px; margin-top: 6px; }
 .card .report textarea { font: inherit; font-size: .86rem; background: var(--panel-2); color: var(--ink); border: 2px solid var(--edge); padding: 4px 6px; }
+.card .report input[type=file], .card .report input[type=email] { font: inherit; font-size: .82rem; background: var(--panel-2); color: var(--ink); border: 2px solid var(--edge); padding: 4px 6px; width: 100%; box-sizing: border-box; }
+.card .report .rep-after { border-top: 2px dashed var(--edge); margin-top: 8px; padding-top: 8px; display: grid; gap: 6px; font-size: .84rem; }
+.card .report .rep-after small { color: var(--muted); line-height: 1.35; }
+.card .report .rep-after .row { display: flex; gap: 8px; flex-wrap: wrap; }
 .card .report #repMsg { font-size: .86rem; color: var(--muted); }
 .card .report #repMsg.rep-ok { color: #ff9a3c; font-weight: 700; font-size: .95rem; }
 .card .report #repMsg.rep-err { color: #ff7a5c; font-weight: 700; }
@@ -247,7 +251,11 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
 .card-neighbor-btn:hover, .card-neighbor-btn:focus-visible { background: #ffe08a; transform: translateY(-1px); }
 .card .links a.card-report-btn { flex-basis: 100%; text-align: center; color: var(--ink); background: var(--panel-2); border: 2px solid var(--edge); padding: 5px 8px; text-decoration: none; font-weight: 700; }
 .card .links a.card-report-btn:hover, .card .links a.card-report-btn:focus-visible { border-color: var(--lamp); color: var(--lamp); }
-.nolabels .pin, .far .pin:not(.need):not(.neighbor) { display: none !important; }
+.nolabels .pin, .far .pin:not(.need):not(.neighbor), body.plugins-hide-pins .pin { display: none !important; }
+#pluginLayers { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; pointer-events: none; z-index: 2; }
+.izomapa-slot-tabs { position: fixed; z-index: 3; top: calc(env(safe-area-inset-top, 0px) + 88px); left: calc(max(16px, env(safe-area-inset-left, 0px)) + var(--pw, 356px)); transition: left .2s ease; display: flex; flex-direction: column; gap: 6px; }
+.folded .izomapa-slot-tabs { left: 0; }
+.izomapa-slot-tabs:empty { display: none; }
 .loading { position: fixed; inset: 0; display: grid; place-items: center; font-family: var(--display); color: var(--muted); z-index: 1; pointer-events: none; }
 .mbar { display: none; }
 
@@ -267,6 +275,8 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
   .results button, .places button { min-height: 44px; }
   dialog.help .close { width: 44px; height: 44px; }
   .folded .panel { transform: none; }
+  .izomapa-slot-tabs { left: auto; right: 0; top: calc(env(safe-area-inset-top, 0px) + 84px); align-items: flex-end; }
+  .folded .izomapa-slot-tabs { left: auto; }
   .mbar {
     display: grid; grid-template-columns: repeat(4, 1fr) 1fr 0.8fr; gap: 6px;
     position: fixed; z-index: 5; left: 0; right: 0; bottom: 0;
@@ -293,10 +303,11 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
 }
 </style>
 
-<div id="map" aria-label="Izometrická pixel-art mapa {{MESTO}}"><div id="osd"></div><canvas id="fx"></canvas></div>
+<div id="map" aria-label="Izometrická pixel-art mapa {{MESTO}}"><div id="osd"></div><div id="pluginLayers"></div><canvas id="fx"></canvas></div>
 <div class="loading" id="loading">Načítám mapu…</div>
 
 <button class="fold" id="fold" type="button" aria-controls="panel" aria-expanded="true" aria-label="Zasunout panel" title="Zasunout panel">‹</button>
+<div class="izomapa-slot-tabs" id="pluginTabsSlot"></div>
 <aside class="panel" id="panel">
   <div class="head">
     <div>
@@ -362,6 +373,7 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
           <option value="16">prac. den 16 h</option><option value="17">prac. den 17 h</option><option value="36">víkend 12 h</option></select></label>
       <label><input type="checkbox" id="l-smoke" checked> Kouř z&nbsp;komínů</label>
       <label hidden><input type="checkbox" id="l-xmas"> Vánoční výzdoba</label>
+      <label hidden title="Hypotetická zástavba podle urbanistické studie z 80. let, nikdy nepostavená. Domy a jejich výška jsou odhad z makety a výkresu."><input type="checkbox" id="l-plachta"> Plachta: sídliště podle studie <small style="opacity:.6;font-size:.72em">(experimentální)</small></label>
       <label><input type="checkbox" id="l-hover" checked> Zvýraznit budovy</label>
       <label id="l-stops-row" hidden><input type="checkbox" id="l-stops"> Zastávky MHD</label>
     </div>
@@ -400,9 +412,20 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
     <form id="reportForm">
       <input id="repWeb" name="web" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
       <textarea id="repNote" rows="3" maxlength="500" required placeholder="Co tu nesedí se skutečností?"></textarea>
+      <input id="repFoto" type="file" accept="image/*" aria-label="Fotka (nepovinná)" hidden>
+      <button class="px-btn" type="button" id="repFotoBtn" hidden>📷 Přidat fotku</button>
+      <span id="repFotoNazev" hidden></span>
       <button class="px-btn" type="submit">Odeslat</button>
       <span id="repMsg" role="status"></span>
     </form>
+    <div class="rep-after" id="repAfter" hidden>
+      <b id="repAfterH">Chcete k hlášení přidat fotku?</b>
+      <div id="repAfterFoto"><input id="repFoto2" type="file" accept="image/*" aria-label="Fotka"></div>
+      <b>A chcete dostat poděkování a zprávu, až to vyřešíme?</b>
+      <input id="repEmail" type="email" autocomplete="email" maxlength="254" placeholder="váš e-mail (nepovinné)">
+      <small>Fotka i e-mail se ukládají soukromě, nikde se nezveřejňují. E-mail použijeme jen k poděkování a zprávě o stavu tohoto hlášení.</small>
+      <div class="row"><button class="px-btn" type="button" id="repAfterOk">Odeslat doplnění</button><button class="px-btn" type="button" id="repAfterNo">Ne, děkuji</button></div>
+    </div>
   </details>
 </section>
 
@@ -510,6 +533,7 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
   viewer.world.addHandler('add-item', (e) => { if (e.item.source && e.item.source.tilesUrl !== undefined) e.item.source.queryParams = VER; });
   const solid = (r, g, b) => { const c = document.createElement('canvas'); c.width = c.height = 2; const x = c.getContext('2d'); x.fillStyle = `rgb(${r},${g},${b})`; x.fillRect(0, 0, 2, 2); return c.toDataURL(); };
   let warmItem = null, darkItem = null, ready = false;
+  let layersReadyRes; const layersReady = new Promise((r) => { layersReadyRes = r; });   // doplňky (doplnky/): spustí se po načtení vrstev
   const add = (opts) => new Promise((res) => viewer.addTiledImage({ ...opts, success: (e) => res(e.item), error: () => res(null) }));
   const layerOpacity = (l) => (shown(l.key) ? 1 : 0);
   // náhled celé mapy (jeden obrázek ~0,5 MB): ukáže se hned, detailní dlaždice čtverců se doplní pod ním souběžně
@@ -544,6 +568,8 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
     const a = p(VANOCE.od), b = p(VANOCE.do);
     return a <= b ? md >= a && md <= b : md >= a || md <= b;       // přes Nový rok
   };
+  let plachtaOn = false;                                       // přepínač „Plachta“: zástavba podle nerealizované studie (jen v tomto prohlížeči)
+  const lightOp = (l) => (shown(l.key) ? smooth(0.5, 0.95, state.night) : 0);
   let xmasUser = null;                                         // ruční přepnutí v menu (jen v tomto prohlížeči)
   const xmasOn = () => !!VANOCE && (xmasUser ?? inXmasDates());
   const xmasShow = () => xmasOn() && (state.season === 'winter' || state.season === 'autumn');   // ručně zvolené jaro nebo léto výzdobu nemá
@@ -551,8 +577,11 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
     if (!ready && !LAYERS.some((l) => l.day)) return;
     $('l-xmas').checked = xmasOn();
     $('l-xmas').closest('label').hidden = !VANOCE;
+    $('l-plachta').closest('label').hidden = !LAYERS.some((l) => l.src('plachta_summer'));      // vrstva ze skripty/plachta.sh
+    $('l-plachta').checked = plachtaOn;
     const want = (l) => {
       const w = {};
+      if (plachtaOn) { const v = 'plachta_' + state.season; if (l.src(v)) w.plachta = v; if (l.src('plachta_lights')) w.plachtal = 'plachta_lights'; }
       if (xmasShow()) { const v = state.season === 'winter' ? 'xmas_winter' : 'xmas_autumn'; if (l.src(v)) w.xmas = v; }
       return w;
     };
@@ -562,7 +591,7 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
       for (const [k, e] of Object.entries(l.extra)) if (w[k] !== e.v) { if (e.it) viewer.world.removeItem(e.it); e.dead = true; delete l.extra[k]; }
       for (const [k, v] of Object.entries(w)) if (!l.extra[k]) {
         const e = l.extra[k] = { v };
-        viewer.addTiledImage({ tileSource: l.src(v), x: l.x, y: l.y, width: l.w, opacity: layerOpacity(l), success: (ev) => {
+        viewer.addTiledImage({ tileSource: l.src(v), x: l.x, y: l.y, width: l.w, opacity: layerOpacity(l), ...(k === 'plachtal' ? { compositeOperation: 'lighter', opacity: lightOp(l) } : {}), success: (ev) => {
           if (e.dead) { viewer.world.removeItem(ev.item); return; }
           e.it = ev.item; reorder();
         } });
@@ -570,6 +599,7 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
     }
   }
   $('l-xmas').addEventListener('change', (e) => { xmasUser = e.target.checked; applyExtras(); });
+  $('l-plachta').addEventListener('change', (e) => { plachtaOn = e.target.checked; applyExtras(); });
   const S_REV = { spring: 'jaro', summer: 'leto', autumn: 'podzim', winter: 'zima' };
   const neighborHref = (n) => {
     let u = n.url || '';
@@ -637,7 +667,7 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
       n.el = el;
       viewer.addOverlay({ element: el, location: new OpenSeadragon.Point(n.xy[0] / W, n.xy[1] / W), placement: OpenSeadragon.Placement.CENTER, checkResize: false });
     }
-    ready = true; applyVisibility(); applyTime(); loadMini(); tickReal();
+    ready = true; layersReadyRes(); applyVisibility(); applyTime(); loadMini(); tickReal();
     viewer.viewport.fitBounds(homeBounds(), true);
     { const b = homeBounds(), side = Math.max(b.width, b.height) * 1.04, tx = b.x - (side - b.width) / 2, ty = b.y - (side - b.height) / 2;   // čtverec kolem mapy místo 200 × 200: omezení oddálení a posunu platí k mapě
       for (const it of [warmItem, darkItem]) if (it) { it.setPosition(new OpenSeadragon.Point(tx, ty), true); it.setWidth(side, true); } }
@@ -718,6 +748,7 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
     if (warmItem) warmItem.setOpacity(warm * 0.32);
     if (darkItem) darkItem.setOpacity(smooth(0.35, 0.95, t) * 0.78);
     for (const l of LAYERS) if (l.light) l.light.setOpacity(shown(l.key) ? smooth(0.5, 0.95, t) : 0);
+    for (const l of LAYERS) if (l.extra && l.extra.plachtal && l.extra.plachtal.it) l.extra.plachtal.it.setOpacity(lightOp(l));
     const d = smooth(0.35, 0.95, t);
     const mix = (a, b) => Math.round(a + (b - a) * d);
     $('map').style.background = $('osd').style.background = `rgb(${mix(27 + warm * 30, 9)},${mix(35 + warm * 12, 12)},${mix(51, 24)})`;
@@ -725,7 +756,7 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
   }
   function applyVisibility() {
     for (const l of LAYERS) if (l.day) l.day.setOpacity(layerOpacity(l));
-    for (const l of LAYERS) for (const e of Object.values(l.extra || {})) if (e.it) e.it.setOpacity(layerOpacity(l));
+    for (const l of LAYERS) for (const [k, e] of Object.entries(l.extra || {})) if (e.it) e.it.setOpacity(k === 'plachtal' ? lightOp(l) : layerOpacity(l));
     for (const p of OV.places) if (p.el) p.el.hidden = !shown(p.k);
     for (const n of OV.neighbors || []) if (n.el) n.el.hidden = !shown(n.k);
     for (const n of OV.needs || []) if (n.el) n.el.hidden = !state.wip;
@@ -954,8 +985,44 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
   const repMsg = (t, cls) => { $('repMsg').textContent = t; $('repMsg').className = cls ? 'rep-' + cls : ''; };
   function setReport(target, title, lon, lat) {
     repTarget = { target, title, lon, lat };
-    $('report').open = false; repMsg('', ''); $('repNote').value = '';
+    $('report').open = false; repMsg('', ''); $('repNote').value = ''; $('repAfter').hidden = true; $('reportForm').hidden = false; repFoto = null; $('repFotoNazev').hidden = true; $('repFotoNazev').textContent = '';
+    $('reportForm').querySelector('button[type=submit]').disabled = false; repPotvrzeni = null;
   }
+  // fotka: zmenšit v prohlížeči (delší strana max 1600 px, JPEG), aby se vešla do limitu požadavku a neukládaly se zbytečně velké soubory
+  let repFoto = null, repPotvrzeni = null;
+  async function zmensiFotku(file) {
+    if (!file || !/^image\//.test(file.type)) return null;
+    const bmp = await createImageBitmap(file).catch(() => null); if (!bmp) return null;
+    const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height)), c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    let q = .85, u = c.toDataURL('image/jpeg', q);
+    while (u.length > 3.8e6 && q > .4) { q -= .15; u = c.toDataURL('image/jpeg', q); }   // base64 ≈ 4/3 velikosti, server bere do ~3,5 MB souboru
+    return u.length > 4.6e6 ? null : u;
+  }
+  $('repFotoBtn').hidden = false;
+  $('repFotoBtn').addEventListener('click', () => $('repFoto').click());
+  $('repFoto').addEventListener('change', async () => {
+    const f = $('repFoto').files[0]; repFoto = f ? await zmensiFotku(f) : null;
+    $('repFotoNazev').hidden = !f; $('repFotoNazev').textContent = f ? (repFoto ? '✓ ' + f.name : 'Tuto fotku se nepodařilo načíst') : '';
+  });
+  async function doplnit(foto, email) {
+    const r = await fetch('api/report', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ doplnit: repPotvrzeni.cislo, podpis: repPotvrzeni.podpis, foto, email }) });
+    return r.json().catch(() => ({}));
+  }
+  $('repAfterNo').addEventListener('click', () => { $('repAfter').hidden = true; $('report').open = false; });
+  $('repAfterOk').addEventListener('click', async () => {
+    const f = $('repFoto2').files[0], email = $('repEmail').value.trim();
+    const foto = f ? await zmensiFotku(f) : null;
+    if (f && !foto) { repMsg('Fotku se nepodařilo načíst, zkuste jinou.', 'err'); return; }
+    if (!foto && !email) { $('repAfter').hidden = true; return; }
+    $('repAfterOk').disabled = true; repMsg('Odesílám…', '');
+    try { const d = await doplnit(foto, email);
+      if (d.ok) { $('repAfter').hidden = true; repMsg('Díky! ' + [d.foto && 'Fotku máme', d.email && 'e-mail jsme si poznamenali'].filter(Boolean).join(', ') + '.', 'ok'); }
+      else repMsg(d.msg || 'Doplnění se nepovedlo.', 'err');
+    } catch { repMsg('Doplnění teď nejde odeslat. Zkuste to prosím později.', 'err'); }
+    $('repAfterOk').disabled = false;
+  });
   $('reportForm').addEventListener('submit', async (e) => {
     e.preventDefault(); if (!repTarget) return;
     if ($('repNote').value.trim().length < 3) { repMsg('Napište prosím, co tu nesedí (aspoň pár slov).', 'err'); return; }
@@ -963,9 +1030,17 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
     repMsg('Odesílám…', '');
     try {
       const r = await fetch('api/report', { method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ...repTarget, note: $('repNote').value.trim(), hp: $('repWeb').value, url: location.href }) });
+        body: JSON.stringify({ ...repTarget, note: $('repNote').value.trim(), hp: $('repWeb').value, url: location.href, foto: repFoto }) });
       const d = await r.json().catch(() => ({}));
-      if (d.ok) { $('repNote').value = ''; repMsg('Díky! Hlášení je odeslané.', 'ok'); }
+      if (d.ok) {
+        $('repNote').value = ''; repFoto = null; $('repFoto').value = ''; $('repFotoNazev').hidden = true;
+        repMsg('Díky! Hlášení je odeslané' + (d.cislo ? ` (č. ${d.cislo}).` : '.'), 'ok');
+        if (d.soukrome && d.cislo) {                      // po potvrzení vybídnout k fotce a e-mailu (soukromé úložiště je zapnuté)
+          repPotvrzeni = { cislo: d.cislo, podpis: d.podpis };
+          $('repAfterFoto').hidden = !!d.foto; $('repAfterH').hidden = !!d.foto; $('repFoto2').value = ''; $('repEmail').value = '';
+          $('repAfter').hidden = false;
+        }
+      }
       else repMsg(d.msg || 'Hlášení se nepovedlo odeslat. Zkuste to prosím za chvíli.', 'err');
     } catch { repMsg('Hlášení teď nejde odeslat (bez připojení?). Zkuste to prosím později.', 'err'); }
     $('reportForm').querySelector('button').disabled = false;
@@ -1022,8 +1097,26 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
   }
 
   const vpToImg = (pos) => { const p = viewer.viewport.viewerElementToViewportCoordinates(pos); return [p.x * W, p.y * W]; };
+  // ---------- systém doplňků (z upstreamu izomapy: web/js/45-doplnky-klik.js, 90-doplnky-api.js) ----------
+  const pluginRegistry = {}, pluginLibs = {}, pluginClicks = [], pluginFrames = [];
+  let pluginCapture = false, pluginCursor = '';
+  const runFrameLayer = (layerName, view, t) => {
+    if (!view) return;
+    for (const h of [...pluginFrames]) {
+      if (h.layer !== layerName) continue;
+      ctx.save();
+      try { h.fn(ctx, view, t); } catch (err) { console.error(err); } finally { ctx.restore(); }
+    }
+  };
   viewer.addHandler('canvas-click', (e) => {
     if (!e.quick) return;
+    if (pluginClicks.length || pluginCapture) {
+      const [ix, iy] = vpToImg(e.position);
+      const evt = { x: ix, y: iy, screenX: e.position.x, screenY: e.position.y, originalEvent: e };
+      let handled = false;
+      for (const h of pluginClicks) if (h.fn(evt) === true) { handled = true; break; }
+      if (handled || pluginCapture) return;
+    }
     if (typeof PLANES !== 'undefined') {
       const pl = PLANES.drawn.find((q) => Math.hypot(q[0] - e.position.x, q[1] - e.position.y) < 26);
       if (pl) { planeFollow(pl[2]); return; }
@@ -1037,6 +1130,7 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
     if (b) showBuilding(b); else showPoint(ix, iy);
   });
   $('osd').addEventListener('pointermove', (e) => {
+    if (pluginCursor || pluginCapture) { state.hover = null; $('osd').style.cursor = pluginCursor; return; }
     const r = $('osd').getBoundingClientRect();
     const mx = e.clientX - r.left, my = e.clientY - r.top;
     if (typeof PLANES !== 'undefined') {
@@ -3154,8 +3248,15 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
     const vp = viewer.viewport;
     const p0 = vp.pixelFromPoint(new OpenSeadragon.Point(0, 0), true), p1 = vp.pixelFromPoint(new OpenSeadragon.Point(1, 0), true);
     const sx = (p1.x - p0.x) / W, ox = p0.x, oy = p0.y;
+    if ($('pluginLayers').childElementCount) $('pluginLayers').style.transform = `translate(${ox}px,${oy}px) scale(${sx})`;
     const vis = (ix, iy, m = 40) => { const x = ox + ix * sx, y = oy + iy * sx; return x > -m && y > -m && x < cw + m && y < ch + m; };
     const night = state.night, t = now / 1000, snowy = state.season === 'winter';
+    const frameView = pluginFrames.length ? {
+      sx, ox, oy, cw, ch, dpr, dt, now, moving,
+      night, season: state.season, weather: state.weather, snowy, wind: realWind, eco: eco || SLOW,
+      toScreen: (ix, iy) => [ox + ix * sx, oy + iy * sx],
+      vis,
+    } : null;
     $('map').classList.toggle('far', sx < 0.3);
 
     // třpyt vody (ve dne)
@@ -3345,6 +3446,7 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
     if (MHD.route !== null) drawRoute(sx, ox, oy, now);
     // vlastní rozšíření města (assets/custom_web.js)
     for (const p of PLUGINS) if (p.draw) try { p.draw({ ctx, sx, ox, oy, night, t, now, cw, ch, vis, dt }); } catch (e) { console.warn(e); p.draw = null; }
+    runFrameLayer('world', frameView, t);
     // svíčky na hřbitovech: večer; kolem Dušiček (30. 10.–10. 11.) skoro na každém hrobě, na Štědrý den na většině, jinak jen tu a tam.
     // Hřbitovní lampy jsou červené, žluté a bílé; plamen se mihotá, při přiblížení kolem něj malá záře
     if (night > 0.3 && sx > 0.1 && svicky.length) {
@@ -3402,6 +3504,7 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
       stepPlanes(dt, now);
       drawPlanes(sx, ox, oy, night, now, cw, ch);
     }
+    runFrameLayer('sky', frameView, t);
     // názvy čtvrtí: jako mraky – vidět při oddálení, s přiblížením plynule mizí
     {
       const fadeD = Math.max(0, Math.min(1, (0.22 - sx) / 0.14));
@@ -3445,12 +3548,103 @@ dialog.help ol.vd-list { margin: 0; padding-left: 22px; } ol.vd-list li { margin
       ctx.drawImage(fogTex, -off, 0, cw * 1.5, ch); ctx.drawImage(fogTex, cw * 1.5 - off, 0, cw * 1.5, ch);
       ctx.globalAlpha = 1;
     }
+    runFrameLayer('top', frameView, t);
     if (mini.offsetParent) {                               // na mobilu je minimapa skrytá; jinak kreslit jen při změně
       const b = viewer.viewport.getBounds(true), mk = [b.x.toFixed(4), b.y.toFixed(4), b.width.toFixed(4), state.season, state.night > 0.35 ? state.night.toFixed(2) : 0, state.wip, Object.keys(miniImgs).length, cw].join('|');
       if (mk !== miniKey) { miniKey = mk; drawMini(); }
       const m = cam.mpp / sx, st = m < 1 ? `1\u00a0px = ${Math.round(m * 100)}\u00a0cm` : `1\u00a0px = ${Math.round(m)}\u00a0m`;
       if (st !== scaleTxt) { scaleTxt = st; $('scale').textContent = st; }
     }
+  }
+  window.Izomapa = {
+    libs: pluginLibs,
+    registerLib(id, api) { if (id) pluginLibs[id] = api; },
+    getLib: (id) => pluginLibs[id] ?? null,
+    getPluginData: (id) => OV.doplnky?.[id]?.data ?? null,
+    getPluginConfig: (id) => OV.doplnky?.[id]?.config ?? {},
+    registerPlugin(id, inst) {
+      if (pluginRegistry[id]?.onDestroy) try { pluginRegistry[id].onDestroy(); } catch {}
+      pluginRegistry[id] = inst || {};
+      if (inst?.onInit) { if (ready) inst.onInit(window.Izomapa); else layersReady.then(() => inst.onInit(window.Izomapa)); }
+    },
+    onMapClick(fn, options = { priority: 0 }) {
+      const entry = { fn, priority: options?.priority ?? 0 };
+      pluginClicks.push(entry); pluginClicks.sort((a, b) => b.priority - a.priority);
+      return () => { const i = pluginClicks.indexOf(entry); if (i >= 0) pluginClicks.splice(i, 1); };
+    },
+    onFrame(fn, options = {}) {
+      if (typeof fn !== 'function') return () => {};
+      const layer = options?.layer === 'world' || options?.layer === 'top' ? options.layer : 'sky';
+      const entry = { fn, layer, priority: options?.priority ?? 0 };
+      pluginFrames.push(entry); pluginFrames.sort((a, b) => b.priority - a.priority);
+      return () => { const i = pluginFrames.indexOf(entry); if (i >= 0) pluginFrames.splice(i, 1); };
+    },
+    setClickCapture(en) { pluginCapture = Boolean(en); },
+    setCursor(cur) { pluginCursor = cur || ''; $('osd').style.cursor = pluginCursor; },
+    setPinsVisible(vis) { document.body.classList.toggle('plugins-hide-pins', !vis); },
+    getPluginLayer(id) {
+      let el = $('pluginLayers').querySelector(`[data-plugin="${id}"]`);
+      if (!el) { el = document.createElement('div'); el.dataset.plugin = id; el.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;'; $('pluginLayers').appendChild(el); }
+      return el;
+    },
+    getView() { const c = viewer.viewport.getCenter(true); return { x: c.x * W, y: c.y * W, zoom: viewer.viewport.getZoom(true) }; },
+    getCam: () => ({ ...cam, w: W, h: Hh }),
+    toImg: (x, y, h = 0) => toImg(x, y, h),
+    imgToWorld: (ix, iy) => imgToWorld(ix, iy),
+    gz: (x, y) => gz(x, y),
+    latLonToWorld: (lat, lon) => [(lon - cam.lon0) * cam.kx, (lat - cam.lat0) * cam.ky],
+    worldToLatLon: (x, y) => { const [lon, lat] = lonlat(x, y); return [lat, lon]; },
+    latLonToImg: (lat, lon, hOffset = 0) => { const x = (lon - cam.lon0) * cam.kx, y = (lat - cam.lat0) * cam.ky; return toImg(x, y, gz(x, y) + hOffset); },
+    panTo(x, y, zoom, animated = true) {
+      if (Number.isFinite(x) && Number.isFinite(y)) viewer.viewport.panTo(new OpenSeadragon.Point(x / W, y / W), !animated);
+      if (Number.isFinite(zoom)) viewer.viewport.zoomTo(zoom, null, !animated);
+    },
+    getEnvironment: () => ({ night: state.night, rain: state.weather === 'rain', weather: state.weather, season: state.season, realTime: $('realTime').checked, realWeather: $('realWeather').checked }),
+    setEnvironment(env = {}) {
+      if (env.season) setSeason(env.season);
+      if (env.realWeather !== undefined) { $('realWeather').checked = Boolean(env.realWeather); if (env.realWeather) applyRealWeather(); }
+      else if (env.weather !== undefined || env.rain !== undefined) $('realWeather').checked = false;
+      const w = env.weather !== undefined ? env.weather : (env.rain !== undefined ? (env.rain ? 'rain' : 'clear') : undefined);
+      if (w !== undefined) setWeather(w);
+      if (env.realTime !== undefined) { $('realTime').checked = Boolean(env.realTime); if (env.realTime) tickReal(); }
+      else if (typeof env.night === 'number') $('realTime').checked = false;
+      if (typeof env.night === 'number') { state.night = Math.max(0, Math.min(1, env.night)); $('night').value = Math.round(state.night * 100); applyTime(); }
+    },
+    isOccluded: (x, y, h = 0) => { const [ix, iy] = toImg(x, y, h); return occluded(ix, iy, depth(x, y, h)); },   // rozšíření oproti upstreamu: bod (svět, m) je za budovou
+    getUiSlot(slotName = 'sidebar-tabs') { return slotName === 'sidebar-tabs' ? $('pluginTabsSlot') : null; },
+  };
+  if (OV.doplnky && Object.keys(OV.doplnky).length) {
+    const loadedStyles = new Set(), loadedScripts = new Map();
+    const loadStyle = (href) => {
+      if (!href || loadedStyles.has(href)) return;
+      loadedStyles.add(href);
+      const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = href; document.head.appendChild(l);
+    };
+    const loadScript = (src) => {
+      if (!src) return Promise.resolve();
+      if (loadedScripts.has(src)) return loadedScripts.get(src);
+      const p = new Promise((resolve) => {
+        const s = document.createElement('script'); s.src = src; s.async = false;
+        s.onload = () => resolve(true);
+        s.onerror = () => { console.warn('Nepodařilo se načíst skript doplňku:', src); resolve(false); };
+        document.body.appendChild(s);
+      });
+      loadedScripts.set(src, p);
+      return p;
+    };
+    layersReady.then(async () => {
+      const list = Object.values(OV.doplnky);
+      const libUrls = [];
+      for (const p of list) {
+        for (const href of p.lib_styles || []) loadStyle(href);
+        for (const src of p.lib_scripts || []) if (!libUrls.includes(src)) libUrls.push(src);
+      }
+      if (libUrls.length) await Promise.all(libUrls.map(loadScript));
+      for (const p of list) {
+        for (const href of p.styles || []) loadStyle(href);
+        for (const src of p.scripts || []) loadScript(src);
+      }
+    });
   }
   PLUGINS = (window.IZOMAPA_PLUGINS || []).map((f) => {
     try {

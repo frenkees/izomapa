@@ -12,7 +12,7 @@ from geo import HALF, HREF
 
 DATA = sys.argv[1] if len(sys.argv) > 1 else 'data'
 CHUNK = tuple(int(v) for v in sys.argv[2].split(',')) if len(sys.argv) > 2 else (0, 0)
-OUT = geo.chunk_dir(CHUNK)
+OUT = geo.chunk_dir(CHUNK) + ('_plachta' if os.environ.get('IZO_PLACHTA') == '1' else '')   # IZO_PLACHTA=1: varianta scény se zástavbou podle studie (skripty/plachta.sh)
 CX, CY = geo.chunk_center(CHUNK)          # všechno níže je v souřadnicích relativních ke středu čtverce
 
 
@@ -56,6 +56,15 @@ def _hook(phase):
 RUIAN = json.load(open('assets/ruian_budovy.json')) if os.path.exists('assets/ruian_budovy.json') else {}
 # oblasti podle skutečnosti (tuning/oblast.py): stromy z ortofota a DMP, barvy střech, ruční úpravy budov
 OBL = json.load(open('assets/oblasti.json')) if os.path.exists('assets/oblasti.json') else {}
+# varianta „Plachta“ (IZO_PLACHTA=1, assets/plachta_studie.json z ../skripty/plachta_studie.py): hypotetická zástavba podle urbanistické studie.
+# Budovy přes custom_bld, trávník a atletický ovál přes plochy, v zóně náhodné stromy pryč a místo nich uliční stromořadí (oblast).
+if os.environ.get('IZO_PLACHTA') == '1' and os.path.exists('assets/plachta_studie.json'):
+    _PS = json.load(open('assets/plachta_studie.json', encoding='utf-8'))
+    UP['custom_bld'] = list(UP.get('custom_bld', [])) + [
+        {'id': b['id'], 'poly': b['poly'], 'h': b['h'], 'cls': b['cls'], 'r': 'flat', 'wc': b['wc'], 'rc': b['rc']} for b in _PS['budovy']]
+    UP['plochy'] = list(UP.get('plochy', [])) + _PS['plochy']
+    UP['hriste'] = list(UP.get('hriste', [])) + _PS.get('hriste', [])
+    OBL['plachta_studie'] = {'poly': _PS['zona'], 'trees': _PS['stromy'], 'b': {}, 'b_auto': {}}
 for _o in OBL.values():
     for _k, _v in list(_o['b_auto'].items()) + list(_o['b'].items()): SAT['b'][_k] = {**SAT['b'].get(_k, {}), **_v}
 HREBENY = json.load(open('assets/hrebeny.json')) if os.path.exists('assets/hrebeny.json') else {}   # nastroje/hrebeny.py
@@ -589,6 +598,9 @@ for _, r in seg.iterrows():
 FOOT = {'footway', 'path', 'cycleway', 'steps', 'pedestrian', 'bridleway', 'track'}
 GRADE = {'road': 0.06, 'rail': 0.03, 'foot': 0.08}
 roads = [(a_, l_, c_, w_, n_) for a_, g_, c_, w_, n_ in roads for l_ in lines(g_)]
+if os.environ.get('IZO_PLACHTA') == '1' and os.path.exists('assets/plachta_studie.json'):    # sídliště nahrazuje dnešní lesní cesty v zóně
+    _zp = Polygon([to_local(lo, la) for la, lo in _PS['zona']])
+    roads = [r_ for r_ in roads if not (r_[2] in ('track', 'path', 'footway', 'cycleway', 'steps', 'bridleway') and r_[1].intersects(_zp))]
 _under = shapely.STRtree([g for _, g, c, w, _n in roads])
 _water = shapely.unary_union([r.geom.buffer(4) for _, r in wat.iterrows()] or [Point(1e9, 1e9)])
 _rused, _rcut = set(), {}                 # cesty nájezdů tohoto mostu; index -> odříznuté úseky [(a, b)]
@@ -1339,7 +1351,7 @@ for l, w, c, n in drive_lines:
 # ---------------- budovy ----------------
 bld = load('building')
 # jen budovy z OpenStreetMap (nebo ručně potvrzené v upresneni.json)
-bld = bld[[(s is not None and any(x['dataset'] == 'OpenStreetMap' for x in s)) or i_ in UP['b'] for s, i_ in zip(bld.sources, bld.id)]].reset_index(drop=True)
+bld = bld[[((s is not None and any(x['dataset'] == 'OpenStreetMap' for x in s)) or i_ in UP['b']) and not UP['b'].get(i_, {}).get('skryt') for s, i_ in zip(bld.sources, bld.id)]].reset_index(drop=True)
 for i, r in bld.iterrows():                             # výšky z upřesnění mají přednost před daty
     if 'h' in UP['b'].get(r.id, {}): bld.at[i, 'height'] = UP['b'][r.id]['h']
 if len(bld) and UP['roofs']:                            # přístřešky nástupišť (nejsou v OSM jako budovy)
@@ -1726,6 +1738,10 @@ for _, r in bld.iterrows():
         if not c and area < 45 and garage_row(p): c = 'garages'
         floors = r.num_floors if r.num_floors == r.num_floors and r.num_floors else None
         if not floors and _ru and _ru[1] and r.id not in DMP: floors = _ru[1]      # laser má přednost
+        _so0 = SAT['b'].get(r.id, {})                                   # ruční opravy z hlášení (assets/upresneni.json "b"): cls, fl (podlaží), name
+        if 'cls' in _so0: c = _so0['cls']
+        if 'fl' in _so0: floors = _so0['fl']
+        if 'name' in _so0: nm = _so0['name']
         hgt = r.height if r.height == r.height and r.height else None
         lm = None
         if c == 'chapel': lm = 'chapel'
@@ -1806,7 +1822,7 @@ for _, r in bld.iterrows():
         else: style = 0
         if tenement: style = 11
         if panel: style = 1
-        if r.id in DMP and not dsp and not lm and c not in ('garage', 'garages', 'carport', 'shed', 'roof'):
+        if r.id in DMP and not dsp and not lm and 'h' not in _so0 and c not in ('garage', 'garages', 'carport', 'shed', 'roof'):
             med, top = DMP[r.id]
             if panel: med = group_med(p.buffer(0.8), med)   # sekce jednoho paneláku stejně vysoké
             if rs == 'flat': total = eave = med
@@ -1870,6 +1886,8 @@ for _, r in bld.iterrows():
                     if inner.contains(Point(x_, y_)):
                         rt.append([round(x_, 2), round(y_, 2), trng.choice((0, 0, 1, 1, 2)), round(ang, 3)])
                 b['rt'] = rt
+        if SAT['b'].get(r.id, {}).get('sachta') and rs == 'flat' and not lm:                 # chybějící výtahová šachta (nástavba typu 2) uprostřed střechy
+            b['rt'] = list(b.get('rt', [])) + [[round(p.centroid.x, 2), round(p.centroid.y, 2), 2, round(ang, 3)]]
         if lm == 'radnice' and squares:
             # průčelí s věžemi = bod obrysu nejblíž náměstí, tečna podél fasády
             sq = squares[0].centroid
@@ -1912,7 +1930,7 @@ for _, r in bld.iterrows():
             if b.get('dz'): top_ = max(top_, b['e'] + max(q[6] for q in b['dz']))
             if b.get('tw'): top_ = max(top_, max(t['h'] for t in b['tw']))           # věže dominanty (vozidla se za ně schovají)
             if 'top' in dsp: top_ = max(top_, gnd + float(dsp['top']))               # vlastní model (lm) vyšší než budova v datech
-        binfo.append({'id': bid, 'oid': key, 'name': nm, 'cls': CLS_CZ.get(c, 'budova' if not c else c), 'floors': floors,
+        binfo.append({'id': bid, 'oid': key, 'name': nm, 'cls': _so0.get('cls_cz') or CLS_CZ.get(c, 'budova' if not c else c), 'floors': floors,
                       'h': round(total, 1), 'roof': rs, 'addr': adrs, 'lon': round(float(lon), 6), 'lat': round(float(lat), 6),
                       'ring': ring_, 'top': round(top_, 2), 'base': round(base, 2),
                       **({'roof_geometry': {'eave': b['e'], 'height': b['rh'], 'parts': b['parts']}}
@@ -2129,6 +2147,28 @@ for l, city, diff in CLIFFS:
         lo, hi = np.minimum(za, zb), np.maximum(za, zb)
         top = hi + (1.1 if city else 0.6)
         lines_out['cliff'].append([[round(x, 2), round(y, 2), round(float(a), 2), round(float(b), 2), int(city)] for (x, y), a, b in zip(P_, lo, top)])
+if os.environ.get('IZO_PLACHTA') == '1' and os.path.exists('assets/plachta_studie.json'):      # okolí sídliště Plachta: lampy, lavičky, koše, zastávky, značky, auta na parkovištích
+    for _k, _lst in (_PS.get('props') or {}).items():
+        if _k == 'lamp': continue                                   # lampy se přidají až po úpravách z pasportu (viz světelná mapa)
+        props.setdefault(_k, [])
+        for _la, _lo, _a in _lst:
+            _x, _y = (float(v) for v in to_local(_lo, _la))
+            if AREA.contains(Point(_x, _y)): props[_k].append([_x, _y, float(ground(_x, _y)), _a])
+    for _la, _lo, _a, _ci in _PS.get('auta') or []:
+        _x, _y = (float(v) for v in to_local(_lo, _la))
+        if AREA.contains(Point(_x, _y)): cars.append((_x, _y, _a, _ci))
+# přístřešky zastávek, které stojí ve vozovce (poloha zastávky z dat leží na ose silnice), posunout na chodník vedle (hlášení z mapy)
+for _s in props['shelter']:
+    _q = Point(_s[0], _s[1])
+    for _k in drive_tree.query(_q.buffer(10)):
+        _l, _w, _c = drive_lines[int(_k)][:3]
+        if _c == 'service' or _l.distance(_q) >= _w / 2 + 0.8: continue
+        _n = shapely.ops.nearest_points(_l, _q)[0]; _v = np.array([_q.x - _n.x, _q.y - _n.y]); _d = float(np.hypot(*_v))
+        if _d < 1e-3:
+            _a = _l.project(_n); _p2 = _l.interpolate(min(_l.length, _a + 1.0)); _p1 = _l.interpolate(max(0.0, _a - 1.0))
+            _v = np.array([-(_p2.y - _p1.y), _p2.x - _p1.x]); _d = float(np.hypot(*_v)) or 1.0
+        _v = _v / _d; _s[0] = float(_n.x + _v[0] * (_w / 2 + 1.7)); _s[1] = float(_n.y + _v[1] * (_w / 2 + 1.7)); _s[2] = float(ground(_s[0], _s[1]))
+        break
 for k in props: props[k] = [[round(v, 3) for v in q] for q in props[k]]
 cars = [[round(x, 2), round(y, 2), round(float(ground(x, y)), 2), round(a, 3), ci] for x, y, a, ci in cars]
 cars += [[round(x, 2), round(y, 2), round(z, 2), round(a, 3), ci] for x, y, z, a, ci in ROOF_CARS if AREA.contains(Point(x, y))]   # parkoviště na střechách
@@ -2387,6 +2427,10 @@ for season, pal in SEASON_PAL.items():
     Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)).save(f'{OUT}/ground_{season}.png', compress_level=1)   # mezisoubor pro render: slabší komprese = rychlejší zápis
     print('textura', season)
 
+if os.environ.get('IZO_PLACHTA') == '1' and os.path.exists('assets/plachta_studie.json'):      # lampy sídliště (po filtru pasportu, aby je nesmazal)
+    for _la, _lo, _a in (_PS.get('props') or {}).get('lamp', []):
+        _x, _y = (float(v) for v in to_local(_lo, _la))
+        if AREA.contains(Point(_x, _y)): props['lamp'].append([round(_x, 3), round(_y, 3), round(float(ground(_x, _y)), 3), _a])
 # světelná mapa pro noc (kužely světla lamp na zemi), 0,5 m/px
 LR = 0.5; LW = int(2 * HALF / LR)
 lm_img = np.zeros((LW, LW), np.float32)
