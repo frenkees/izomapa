@@ -1,6 +1,6 @@
-"""Z web/app.html a mesto.json vyrobí site/index.html (texty, meta, sitemap).
+"""Z web/app.html + web/css + web/js (složí web/sestav.py) a mesto.json vyrobí site/index.html (texty, meta, sitemap).
 Pokud existuje složka obce/*.json, vyrobí pro každou obec i site/index_<obec>.html a site/obce/<obec>/og.jpg."""
-import shutil, html, json, os, re
+import shutil, html, json, math, os, re
 from urllib.parse import urljoin
 from PIL import Image
 import geo
@@ -23,9 +23,11 @@ def odkaz_html(o):
     return f'<a class="px-btn community" href="{E(url)}" target="_blank" rel="noopener">{txt}</a>'
 
 
-def og_obrazek(out='site/og.jpg', W=1200, H=630, dolu=1, latlon=None):
-    """náhled pro sdílení (og:image) 1200×630: výřez středu města z letních dlaždic (o úroveň menší než plné rozlišení)"""
+def og_obrazek(out='site/og.jpg', W=1200, H=630, dolu=None, latlon=None):
+    """náhled pro sdílení (og:image) 1200×630: výřez středu města z letních dlaždic v 0,4 m/px (u základního rozlišení
+    o úroveň menší než plné, u detailního o dvě, aby byl výřez stejně velký)"""
     t = json.load(open('site/tiles.json')); base = t['base']
+    if dolu is None: dolu = 1 + round(math.log2(0.2 / base['mpp']))
     x, y = geo.to_local(latlon[1], latlon[0]) if latlon else (0, 0)
     c = geo.chunk_of(float(x), float(y)) if latlon else (0, 0)
     s = (t.get('chunks') or {}).get(f'c{c[0]}_{c[1]}', {}).get('summer') if c != (0, 0) else None
@@ -47,7 +49,10 @@ def og_obrazek(out='site/og.jpg', W=1200, H=630, dolu=1, latlon=None):
     img.save(out, quality=85)
 
 
-SABLONA = open('web/app.html', encoding='utf-8').read()
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web'))
+import sestav
+SABLONA = sestav.app('web')   # šablona web/app.html s vloženými web/css/*.css a web/js/*.js (ze složky města)
 
 
 def ikony_a_manifest(M):
@@ -93,6 +98,9 @@ def postav_stranku(M, html_out='site/index.html', og_cesta='og.jpg', je_obec=Fal
         'POCASI': 'true' if M.get('pocasi') else 'false',
         'LETADLA': 'true' if M.get('letadla', False) else 'false',
         'DOPRAVA_HERE': 'true' if M.get('doprava_here') else 'false',
+        'PLUHY': 'true' if M.get('pluhy', False) else 'false',
+        'NASTUPISTE': 'true' if M.get('nastupiste', False) else 'false',
+        'MHD': 'true' if mhd.get('gtfs') or os.path.exists('site/mhd.json') else 'false',   # mhd.json vyrábí mhd.py jen s GTFS
         'POHLED': json.dumps(pohled if isinstance(pohled, list) and len(pohled) >= 2 else None),
         'DOMU_CELEK': 'true' if M.get('domu_celek') else 'false',
         'STROM': json.dumps(strom if isinstance(strom, list) and len(strom) == 2 else None),
@@ -109,6 +117,7 @@ def postav_stranku(M, html_out='site/index.html', og_cesta='og.jpg', je_obec=Fal
         # další zdroje dat města (mesto.json "dalsi_zdroje": [{"text": "…", "url": "…"}]), např. pasporty a technická mapa města
         'DALSI_ZDROJE': ''.join(f', <a href="{E(z["url"])}" target="_blank" rel="noopener">{E(z["text"])}</a>' if z.get('url') else f', {E(z["text"])}'
                                 for z in M.get('dalsi_zdroje', [])),
+        'PLUHY_ZDROJ': ', sypače zimní údržby © <a href="https://udrzba.rsd.cz/" target="_blank" rel="noopener">ŘSD ČR</a>' if M.get('pluhy', False) else '',
         'LETADLA_ZDROJ': ', letadla © <a href="https://adsb.lol/" target="_blank" rel="noopener">adsb.lol</a> (ODbL)' if M.get('letadla', False) else '',
         'DOPRAVA_HERE_ZDROJ': ', provoz © <a href="https://www.here.com/" target="_blank" rel="noopener">HERE</a>, © <a href="https://www.tomtom.com/" target="_blank" rel="noopener">TomTom</a>' if M.get('doprava_here') else '',
         # vlastní rozšíření prohlížeče města (assets/custom_web.js, zkopíruje se do site/): window.IZOMAPA_PLUGINS

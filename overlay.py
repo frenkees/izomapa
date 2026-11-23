@@ -7,10 +7,13 @@ import heapq, json, math
 import numpy as np
 from shapely.geometry import MultiPoint
 import os
-from geo import CAM_X, CAM_Y, CHUNKS, HALF, KX, KY, LAT0, LON0, MESTO, Image2D, chunk_center, chunk_dir, to_local
+from geo import CAM_X, CAM_Y, CHUNKS, HALF, KX, KY, LAT0, LON0, MESTO, MPP_OVERLAY, Image2D, chunk_center, chunk_dir, to_local
 
 # souřadnice obrázku = pixely čtverce (0, 0); ostatní čtverce leží mimo (záporné / větší souřadnice)
 info = json.load(open('build/tiles_autumn/info.json'))
+if info['mpp'] != MPP_OVERLAY:          # detailní rozlišení: dlaždice jsou jemnější, obrysy a animace prohlížeče zůstávají v pixelech 0,2 m
+    k = info['mpp'] / MPP_OVERLAY
+    info = {**info, 'mpp': MPP_OVERLAY, 'width': round(info['width'] * k), 'height': round(info['height'] * k)}
 im = Image2D(info)
 W, H = info['width'], info['height']
 OFF = (0.0, 0.0)          # posun aktuálně zpracovávaného čtverce (lokální -> společné souřadnice)
@@ -21,6 +24,10 @@ def px(x, y, h):
     return round(float(a), 1), round(float(b), 1), round(float(d), 1)
 
 
+# ulice s popiskem na mapě: třída OSM -> přednost (0 hlavní silnice, 1 třídy, 2 sběrné, 3 obytné: jen víc zblízka); evidenční čísla silnic („14H-009..2“) ne
+ULICE_TRIDY = {'trunk': 0, 'primary': 0, 'secondary': 1, 'tertiary': 2, 'residential': 3, 'unclassified': 3, 'living_street': 3}
+import re
+ULICE_KOD = re.compile(r'\d-\d|\.\.')
 def chunk_of(x, y):
     """index čtverce pro bod ve společných souřadnicích"""
     return (int(np.floor((x + HALF) / (2 * HALF))), int(np.floor((y + HALF) / (2 * HALF))))
@@ -65,6 +72,50 @@ for f in sorted(glob.glob('data*/land_use.parquet')):
 AREA_TREE = shapely.STRtree([a[2] for a in AREAS]) if AREAS else None
 PL_TREE = shapely.STRtree([shapely.geometry.Point(p[0], p[1]) for p in PLACES_DB]) if PLACES_DB else None
 
+# chodci (web/js/75-chodci.js): pěší cesty z Overture po čtvercích, společné souřadnice [x, y] po 0,1 m.
+# l = čáry, c = druh (p pěší zóna, f chodník, s schody, t cesta v parku/lese, k cyklostezka, c / d cyklotrasa po silnici / po cestě), a = pěší plochy a náměstí (polygony).
+# Chodníky podél ulic, které v datech nejsou, si prohlížeč dopočítá ze silnic (roads). Vypnout: "chodci": false v mesto.json.
+WALK_K = {'pedestrian': 'p', 'footway': 'f', 'steps': 's', 'path': 't', 'cycleway': 'k', 'living_street': 'p', 'bridleway': 't'}
+_WALK, _WALK_SRC = {}, None
+def _walk_src():
+    global _WALK_SRC
+    if _WALK_SRC is not None: return _WALK_SRC
+    tr = lambda g: shapely.ops.transform(lambda x, y, z=None: to_local(x, y), g)
+    lines, areas = [], []
+    if MESTO.get('chodci', True) is not False:
+        for f in sorted(glob.glob('data_all/segment.parquet') or glob.glob('data*/segment.parquet')):
+            t = pq.read_table(f, columns=['class', 'geometry', 'road_flags']).to_pydict()
+            for c, g, fl in zip(t['class'], t['geometry'], t['road_flags']):
+                k = WALK_K.get(c)
+                if not k or any('is_tunnel' in (q.get('values') or []) and not q.get('between') for q in fl or []): continue
+                lines.append((k, tr(shapely.from_wkb(g))))
+        if os.path.exists('assets/cyklotrasy.json'):         # značené cyklotrasy (nastroje/cyklotrasy_osm.py): c po silnici, d po cestě, jen pro cyklisty
+            for druh, pts in json.load(open('assets/cyklotrasy.json')):
+                if len(pts) > 1: lines.append((druh, shapely.geometry.LineString([to_local(lo, la) for la, lo in pts])))
+        for f in sorted(glob.glob('data_all/land_use.parquet') or glob.glob('data*/land_use.parquet')):
+            t = pq.read_table(f, columns=['class', 'geometry']).to_pydict()
+            areas += [tr(shapely.from_wkb(g)) for c, g in zip(t['class'], t['geometry']) if c in ('pedestrian', 'plaza')]
+    _WALK_SRC = (lines, areas)
+    return _WALK_SRC
+def walk_of(chunk):
+    if tuple(chunk) in _WALK: return _WALK[tuple(chunk)]
+    lines, areas = _walk_src()
+    cx, cy = chunk_center(chunk)
+    box = shapely.box(cx - HALF, cy - HALF, cx + HALF, cy + HALF)
+    L, C, A = [], [], []
+    for k, g in lines:
+        g = g.intersection(box)
+        for q in getattr(g, 'geoms', [g]):
+            if q.geom_type != 'LineString' or q.length < 4: continue
+            L.append([[round(x, 1), round(y, 1)] for x, y in q.simplify(0.4).coords]); C.append(k)
+    for g in areas:
+        g = g.intersection(box)
+        for q in getattr(g, 'geoms', [g]):
+            if q.geom_type != 'Polygon' or q.area < 150: continue
+            A.append([[round(x, 1), round(y, 1)] for x, y in q.simplify(1.0).exterior.coords[:-1]])
+    _WALK[tuple(chunk)] = {'walk': {'l': L, 'c': ''.join(C), 'a': A}} if L or A else {}
+    return _WALK[tuple(chunk)]
+
 ONE_BUILDING = set(MESTO.get('jedna_budova', []))      # dominanty se zónami střech: v prepu samostatné díly, na mapě jedna budova
 
 
@@ -107,7 +158,7 @@ for chunk in chunks:
             r0_ = np.array(b['ring']).mean(axis=0); a_ = math.radians(ok_['ang']); u_ = np.array([math.cos(a_), math.sin(a_)]); v_ = np.array([-u_[1], u_[0]])
             b = {**b, 'ring': [list(r0_ + u_ * s_ * ok_['w'] / 2 + v_ * t_ * ok_['d'] / 2) for s_, t_ in ((-1, -1), (1, -1), (1, 1), (-1, 1))], 'top': b['base'] + ok_['h']}
         ring = np.array(b['ring'])
-        top = b['top'] + (22 if b['cls'] == 'kostel' else 0.6)
+        top = b['top'] + (22 if b['cls'] == 'kostel' and not b.get('pam') else 0.6)   # věž kostela (vlastní model památky ji má ve vršku)
         pts = [px(x, y, z)[:2] for x, y in ring for z in (b['base'], top)]
         hull = MultiPoint(pts).convex_hull
         if hull.geom_type != 'Polygon': continue
@@ -188,6 +239,20 @@ for chunk in chunks:
                        **({'o': r['o']} if r.get('o') else {}), **({'ln': r['ln']} if r.get('ln') else {}), **({'l': r['l']} if r.get('l') else {}), **({'v': r['v']} if r.get('v') else {}), **({'t': r['t']} if r.get('t') else {}), **({'x': 1} if r.get('x') else {}), **({'j': [[q[0], q[1] + OFF[0], q[2] + OFF[1]] for q in r['j']]} if r.get('j') else {}),
                        **({'rb': [r['rb'][0] + OFF[0], r['rb'][1] + OFF[1], r['rb'][2]]} if r.get('rb') else {}), **({'y': [[q[0], q[1] + OFF[0], q[2] + OFF[1], q[3]] for q in r['y']]} if r.get('y') else {})})
 
+    # názvy ulic na mapě (web/js/87-nazvy-ulic.js): úseky se stejným názvem spojené do os, svět [x, y] po metrech
+    _ul = {}
+    for r in src['roads']:
+        n_ = r.get('n')
+        if r['c'] in ULICE_TRIDY and n_ and not ULICE_KOD.search(n_) and len(r['p']) > 1:
+            u_ = _ul.setdefault(n_, [9, []]); u_[0] = min(u_[0], ULICE_TRIDY[r['c']])
+            u_[1].append(shapely.geometry.LineString([(x, y) for x, y, _ in r['p']]))
+    ulice = []
+    for n_, (pr_, ls_) in sorted(_ul.items()):
+        g_ = shapely.ops.linemerge(shapely.geometry.MultiLineString(ls_))
+        for l_ in getattr(g_, 'geoms', [g_]):
+            if l_.length >= 60:                    # krátké kousky (konec ulice u hranice čtverce) popisek neunesou
+                ulice.append([n_, pr_, [v for x, y in l_.simplify(2).coords for v in (round(x + OFF[0]), round(y + OFF[1]))]])
+
     gs = np.array(src['ground_small'])[::2, ::2]     # 41 × 41 stačí na dopravu a klikání
     grounds.append({'cx': OFF[0], 'cy': OFF[1], 'g': [[round(v, 1) for v in row] for row in gs.tolist()]})
     streets += [{'name': s['name'], 'k': K, 'xy': list(px(s['x'], s['y'], s['z'])[:2])} for s in src['streets']]
@@ -201,7 +266,9 @@ for chunk in chunks:
     # stromy u silnic, kolejí a sjezdovek: auta, tramvaje a lyžaři se za jejich korunami schovají (svět, z terénu, výška, jehličnan)
     sc_ = json.load(open(f'{chunk_dir(chunk)}/scene.json'))
     T_ = [t for t in sc_['trees'] if (len(t) < 6 or t[5] != 2) and abs(t[0]) <= HALF and abs(t[1]) <= HALF]
-    ln_ = [shapely.LineString([(x, y) for x, y, _ in r['p']]) for r in src['roads'] if len(r['p']) > 1] + \
+    _wk = walk_of(chunk).get('walk', {})   # stromy i u pěších zón, ať se za ně chodci schovají (ne u lesních cest: data by nabobtnala)
+    ln_ = [shapely.LineString([(x - OFF[0], y - OFF[1]) for x, y in w_]) for w_, c_ in zip(_wk.get('l', []), _wk.get('c', '')) if c_ == 'p'] + \
+      [shapely.LineString([(x, y) for x, y, _ in r['p']]) for r in src['roads'] if len(r['p']) > 1] + \
           [shapely.LineString([(x, y) for x, y, _ in l]) for l in src.get('trams', []) + src.get('pistes', []) if len(l) > 1]
     vtrees = []
     if ln_ and T_:
@@ -230,7 +297,7 @@ for chunk in chunks:
                     ta, tb, _ = px(t[0], t[1], t[2] + h_ * 0.62); ra, rb, _ = px(t[0] + r_, t[1], t[2] + h_ * 0.62)
                     if (a_ - ta) ** 2 + (b_ - tb) ** 2 < (ra - ta) ** 2 + (rb - tb) ** 2: skryta = True; break
             if not skryta: svicky.append([round(a_), round(b_), round(u, 3)])
-    per_chunk[K] = {'buildings': buildings, 'chimneys': chimneys, 'roads': roads, 'water': water.pop(K), 'pistes': pistes, 'trees': vtrees, 'svicky': svicky}
+    per_chunk[K] = {'buildings': buildings, 'chimneys': chimneys, 'roads': roads, 'water': water.pop(K), 'pistes': pistes, 'trees': vtrees, 'svicky': svicky, 'ulice': ulice, **walk_of(chunk)}
 
 
 
@@ -253,6 +320,7 @@ elif os.path.exists('sousedi.json'):
 for o in OBCE:
     for s in (o.get('sousedi') or o.get('neighbors') or []):
         SOUS_RAW.append({**s, 'obec': s.get('obec') or o.get('nazev')})
+OFF = (0.0, 0.0)        # dál už společné souřadnice (místa, sousedé, čtvrti, strom): bez posunu posledního čtverce
 def gz(x, y):
     for gr in grounds:
         lx, ly = x - gr['cx'], y - gr['cy']
@@ -416,7 +484,7 @@ for a_n, b_n, n_ in TRAM_LINES:
     print('tramvaj', a_n, '–', b_n, round(sum(math.hypot(x1 - x0, y1 - y0) for (x0, y0), (x1, y1) in zip(on, on[1:]))), 'm', len(st), 'zastávek')
 # semafory (nastroje/semafory.py): [x, y, křižovatka] ve společných souřadnicích; silnicím je přiřadí prohlížeč
 signals = [[round(float(x), 1), round(float(y), 1), j] for la, lo, j in json.load(open('assets/semafory.json')) for x, y in [to_local(lo, la)]] if os.path.exists('assets/semafory.json') else []
-import plugins as _plugins                                    # systém doplňků (doplnky/, přeneseno z upstreamu): build-time hooky, data jdou do overlay.json["doplnky"]
+import plugins as _plugins
 def _plugin_xy(a, b, is_world=False):
     global OFF; OFF = (0.0, 0.0); x, y = (float(a), float(b)) if is_world else to_local(float(b), float(a)); return list(px(float(x), float(y), gz(x, y))[:2])
 _doplnky = _plugins.load_and_run_plugins(MESTO, {**cam, 'w': W, 'h': H}, _plugin_xy)

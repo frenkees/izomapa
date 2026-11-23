@@ -62,8 +62,10 @@ if 'shapes.txt' in zf.namelist():
     trips = [t for t in trips if t['shape_id'] in SI]
 TI = {t['trip_id'] for t in trips}
 st = {}
+PRUJEZD = set()                                           # (trip_id, stop_sequence) bez zastavení (pickup i drop_off = 1): vlak jen projíždí
 for r in T('stop_times'):
     if r['trip_id'] not in TI: continue
+    if r.get('pickup_type') == '1' and r.get('drop_off_type') == '1': PRUJEZD.add((r['trip_id'], int(r['stop_sequence'])))
     ta = r.get('arrival_time') or r.get('departure_time')
     td = r.get('departure_time') or ta
     st.setdefault(r['trip_id'], []).append((int(r['stop_sequence']), sec(ta) if ta else None, sec(td) if td else None, float(r.get('shape_dist_traveled') or 0), r['stop_id']))
@@ -178,7 +180,7 @@ for _sh, (_k, _d) in (KVAL.items() if 'KVAL' in globals() else []):
 if 'KVAL' in globals():
     from collections import Counter as _C
     print('kvalita úseků tras:', dict(_C(c for _k, _d in KVAL.values() for c in _k)))
-st = {k: [(q, a_, d_, dist, SN.get(z, '')) for q, a_, d_, dist, z in v] for k, v in st.items() if k in TI}
+st = {k: [(q, a_, d_, dist, SN.get(z, '') if (k, q) not in PRUJEZD else None) for q, a_, d_, dist, z in v] for k, v in st.items() if k in TI}
 routes, RI = [], {}
 for rid in dict.fromkeys(t['route_id'] for t in trips):
     RI[rid] = len(routes); routes.append([RT[rid]['route_short_name'], KIND(int(RT[rid]['route_type'] or 3))])
@@ -214,6 +216,8 @@ for t in trips:
     L, gl = SLEN[t['shape_id']]; k = L / gl                     # vzdálenost z jízdního řádu -> délka trasy v mapě
     t0 = s[0][1]; seq = []; zs = []
     for j, (_, a, d, dist, nm) in enumerate(s):
+        if nm is None:                                       # průjezd (rychlík zastávkou nestaví): jen časový bod polohy
+            seq += [a - t0, round(dist * k)]; continue
         if 0 < j < len(s) - 1 and d == a:                    # jízdní řád je po minutách: v zastávce stát ~20 s kolem času odjezdu
             gap = min(a - s[j - 1][2], s[j + 1][1] - d)
             w = min(10, gap // 4)
@@ -221,7 +225,7 @@ for t in trips:
         seq += [a - t0, round(dist * k)]
         if d > a: seq += [d - t0, round(dist * k)]              # pobyt v zastávce
         zs += [nid(nm), a - t0]
-    out.append([RI[t['route_id']], SI[t['shape_id']], t['service_id'], t0, seq, nid(t['trip_headsign'] or s[-1][4]), zs])
+    out.append([RI[t['route_id']], SI[t['shape_id']], t['service_id'], t0, seq, nid(t['trip_headsign'] or s[-1][4] or ''), zs])
 # terminál (assets/terminal_hd.json): odjezdová nástupiště jsou pod střechou, tvar spoje ale začíná u výstupní zastávky; vůz začíná na nástupišti (vzdálenost 0 -> místo v pruhu)
 TERM = json.load(open('assets/terminal_hd.json', encoding='utf-8')) if os.path.exists('assets/terminal_hd.json') else None
 if TERM:
