@@ -34,6 +34,8 @@
     toImg: (x, y, h = 0) => toImg(x, y, h),
     imgToWorld: (ix, iy) => imgToWorld(ix, iy),
     gz: (x, y) => gz(x, y),
+    depth: (x, y, h = 0) => depth(x, y, h),                // hloubka bodu světa ve směru pohledu (větší = dál od diváka): co kreslit dřív, odvrácená strana
+    isOccluded: (x, y, h = 0) => { const [ix, iy] = toImg(x, y, h); return occluded(ix, iy, depth(x, y, h)); },   // bod světa je za budovou
     latLonToWorld: (lat, lon) => [(lon - cam.lon0) * cam.kx, (lat - cam.lat0) * cam.ky],
     worldToLatLon: (x, y) => { const [lon, lat] = lonlat(x, y); return [lat, lon]; },
     latLonToImg: (lat, lon, hOffset = 0) => { const x = (lon - cam.lon0) * cam.kx, y = (lat - cam.lat0) * cam.ky; return toImg(x, y, gz(x, y) + hOffset); },
