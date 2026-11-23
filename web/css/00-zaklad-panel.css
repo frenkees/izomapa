@@ -95,6 +95,17 @@ details summary { cursor: pointer; font-family: var(--display); font-size: .78re
 .places { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 1px; }
 .places button { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; padding: 6px 8px; font-size: .9rem; }
 .places button:hover, .places button:focus-visible { background: var(--panel-2); outline: 1px solid var(--edge); }
+/* odkazy města pod vrstvami (mesto.json "odkazy", build_html.py odkaz_html): tlačítka, Facebook/Instagram jako čtvercové ikony */
+.community-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.community-row:empty { display: none; }
+a.community { text-decoration: none; text-align: center; flex: 1 1 auto; }
+.soc { width: 48px; height: 48px; display: grid; place-items: center; color: #fff; border: 3px solid #14202c; box-shadow: 3px 3px 0 rgba(0, 0, 0, .4), inset 0 3px 0 rgba(255, 255, 255, .28), inset 0 -3px 0 rgba(0, 0, 0, .22); text-decoration: none; transition: transform .08s; }
+.soc svg { width: 28px; height: 28px; display: block; }
+a.soc:hover { transform: translate(-1px, -1px); }
+a.soc:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 rgba(0, 0, 0, .4); }
+.soc-facebook { background: #1877f2; }
+.soc-instagram { background: linear-gradient(45deg, #f9a03f 0%, #e1306c 50%, #833ab4 100%); }
+.soc.off { opacity: .45; filter: grayscale(.5); cursor: not-allowed; }
 .about p { margin: 6px 0 0; font-size: .8rem; line-height: 1.45; color: var(--muted); }
 .about strong { color: var(--ink); }
 .about .author { color: var(--ink); }
