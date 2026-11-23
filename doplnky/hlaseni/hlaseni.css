@@ -1,0 +1,7 @@
+/* doplněk hlaseni: fotka a e-mail k hlášení (vzhled jako dřív v hradec:web/app.html) */
+.card .report input[type=file], .card .report input[type=email] { font: inherit; font-size: .82rem; background: var(--panel-2); color: var(--ink); border: 2px solid var(--edge); padding: 4px 6px; width: 100%; box-sizing: border-box; }
+.card .report .rep-after { border-top: 2px dashed var(--edge); margin-top: 8px; padding-top: 8px; display: grid; gap: 6px; font-size: .84rem; }
+.card .report .rep-after small { color: var(--muted); line-height: 1.35; }
+.card .report .rep-after .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.card .report .rep-after[hidden], .card .report #repFotoNazev[hidden], .card .report #repAfterH[hidden], .card .report #repAfterFoto[hidden] { display: none; }
+#repWeb { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }

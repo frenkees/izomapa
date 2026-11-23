@@ -1,0 +1,14 @@
+{
+  "id": "hlaseni",
+  "name": "Hlášení s fotkou a e-mailem",
+  "version": "1.0.0",
+  "description": "Rozšíří formulář „Nahlásit nepřesnost“ v kartě o nepovinnou fotku (zmenšenou v prohlížeči) a po odeslání o nabídku fotky a e-mailu k hlášení (soukromé úložiště). Server: skripty/vercel_api/report.js.",
+  "hook": "overlay_hook.py",
+  "libs": [],
+  "scripts": ["hlaseni.js"],
+  "styles": ["hlaseni.css"],
+  "defaults": {
+    "api": "api/report",
+    "max_strana": 1600
+  }
+}
