@@ -1,0 +1,17 @@
+{
+  "id": "doprava_here",
+  "name": "Živá doprava HERE / TomTom",
+  "version": "1.0.0",
+  "description": "Barevné vytížení ulic (zácpy živě nebo typicky podle hodiny) a hustota a rychlost aut podle jamFactoru HERE a TomTom Traffic.",
+  "hook": "overlay_hook.py",
+  "libs": [],
+  "scripts": ["doprava_here.js"],
+  "styles": [],
+  "defaults": {
+    "min_podil": 0.35,
+    "j_plny": 6,
+    "zive_s": 300,
+    "api": "api/doprava",
+    "api_typicka": "api/doprava_typicka"
+  }
+}

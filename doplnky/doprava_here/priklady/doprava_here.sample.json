@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "api": "api/doprava",
+  "api_typicka": "api/doprava_typicka",
+  "zive_s": 300,
+  "min_podil": 0.35,
+  "j_plny": 6
+}

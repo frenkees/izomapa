@@ -395,13 +395,7 @@ for name, lat, lon, text in NEEDS:
     x, y = to_local(lon, lat); OFF = (0.0, 0.0); c = chunk_of(float(x), float(y))
     if c in CKEY: needs.append({'name': name, 'text': text, 'k': CKEY[c], 'xy': list(px(float(x), float(y), gz(x, y) + 15)[:2])})
 os.makedirs('site/overlay', exist_ok=True)
-if MESTO.get('doprava_here'):      # úseky HERE Traffic na silnicích (nastroje/here_doprava.py): živé zácpy a typické špičky v prohlížeči
-    import sys; sys.path.insert(0, 'nastroje'); import here_doprava
-    _n_h, _st = 0, {}
-    for v in per_chunk.values():
-        _n_h += here_doprava.prirad(v['roads'])
-        for k_, (a_, b_) in getattr(here_doprava.prirad, 'stat', {}).items(): _st[k_] = [_st.get(k_, [0, 0])[0] + a_, _st.get(k_, [0, 0])[1] + b_]
-    print('doprava HERE + TomTom: silnic s úseky', _n_h, '| směr na jednosměrkách (shoda, neshoda):', _st)
+# úseky HERE / TomTom (r['h']) přiřazuje doplněk doplnky/doprava_here (overlay_hook.py), po zápisu site/overlay/*.json
 for K, v in per_chunk.items():
     json.dump(v, open(f'site/overlay/{K}.json', 'w'), separators=(',', ':'), ensure_ascii=False)
 # názvy čtvrtí (Overture divisions: macrohood + obce/osady), zobrazují se jen při oddálení
