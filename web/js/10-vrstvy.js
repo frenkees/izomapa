@@ -68,6 +68,10 @@
     return a <= b ? md >= a && md <= b : md >= a || md <= b;       // přes Nový rok
   };
   let xmasUser = null;                                         // ruční přepnutí v menu (jen v tomto prohlížeči)
+  // přídavné vrstvy dlaždic doplňků (Izomapa.addTileLayer): id -> { variant(season, l) -> název vrstvy v tiles.json nebo null, light }
+  // light = noční světla (sčítání jasu, viditelná jen v noci, jako vrstva lights); jinak běžná vrstva nad čtvercem jako výzdoba
+  const tileExtras = new Map();
+  const lightOp = (l) => (shown(l.key) ? smooth(0.5, 0.95, state.night) : 0);
   const xmasOn = () => !!VANOCE && (xmasUser ?? inXmasDates());
   const xmasShow = () => xmasOn() && (state.season === 'winter' || state.season === 'autumn');   // ručně zvolené jaro nebo léto výzdobu nemá
   function applyExtras() {
@@ -77,6 +81,7 @@
     const want = (l) => {
       const w = {};
       if (xmasShow()) { const v = state.season === 'winter' ? 'xmas_winter' : 'xmas_autumn'; if (l.src(v)) w.xmas = v; }
+      for (const [id, x] of tileExtras) { const v = x.variant(state.season, l); if (v && l.src(v)) w[id] = v; }
       return w;
     };
     for (const l of LAYERS) {
@@ -85,7 +90,7 @@
       for (const [k, e] of Object.entries(l.extra)) if (w[k] !== e.v) { if (e.it) viewer.world.removeItem(e.it); e.dead = true; delete l.extra[k]; }
       for (const [k, v] of Object.entries(w)) if (!l.extra[k]) {
         const e = l.extra[k] = { v };
-        viewer.addTiledImage({ tileSource: l.src(v), x: l.x, y: l.y, width: l.w, opacity: layerOpacity(l), success: (ev) => {
+        viewer.addTiledImage({ tileSource: l.src(v), x: l.x, y: l.y, width: l.w, opacity: layerOpacity(l), ...(tileExtras.get(k)?.light ? { compositeOperation: 'lighter', opacity: lightOp(l) } : {}), success: (ev) => {
           if (e.dead) { viewer.world.removeItem(ev.item); return; }
           e.it = ev.item; reorder();
         } });
@@ -261,6 +266,7 @@
     if (warmItem) warmItem.setOpacity(warm * 0.32);
     if (darkItem) darkItem.setOpacity(smooth(0.35, 0.95, t) * 0.78);
     for (const l of LAYERS) if (l.light) l.light.setOpacity(shown(l.key) ? smooth(0.5, 0.95, t) : 0);
+    for (const l of LAYERS) for (const [k, e] of Object.entries(l.extra || {})) if (e.it && tileExtras.get(k)?.light) e.it.setOpacity(lightOp(l));
     const d = smooth(0.35, 0.95, t);
     const mix = (a, b) => Math.round(a + (b - a) * d);
     $('map').style.background = $('osd').style.background = `rgb(${mix(27 + warm * 30, 9)},${mix(35 + warm * 12, 12)},${mix(51, 24)})`;
@@ -268,7 +274,7 @@
   }
   function applyVisibility() {
     for (const l of LAYERS) if (l.day) l.day.setOpacity(layerOpacity(l));
-    for (const l of LAYERS) for (const e of Object.values(l.extra || {})) if (e.it) e.it.setOpacity(layerOpacity(l));
+    for (const l of LAYERS) for (const [k, e] of Object.entries(l.extra || {})) if (e.it) e.it.setOpacity(tileExtras.get(k)?.light ? lightOp(l) : layerOpacity(l));
     for (const p of OV.places) if (p.el) p.el.hidden = !shown(p.k);
     for (const n of OV.neighbors || []) if (n.el) n.el.hidden = !shown(n.k);
     for (const n of OV.needs || []) if (n.el) n.el.hidden = !state.wip;

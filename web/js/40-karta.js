@@ -1,9 +1,11 @@
   // ---------- karta ----------
   const ROOF = { flat: 'plochá', gabled: 'sedlová', hipped: 'valbová', pyramidal: 'stanová' };
+  const cardHooks = [], buildingClicks = [];               // doplňky: Izomapa.onCard, Izomapa.onBuildingClick (90-doplnky-api.js)
   function showCard({ title, text, rows, lon, lat, k, link, linkText, target, dep }) {
     $('cardTitle').textContent = title;
     if (k && !(LAYERS.find((l) => l.key === k) || {}).status?.startsWith('hotovo')) { const t = document.createElement('span'); t.className = 'wip-tag'; t.textContent = 'Rozpracováno'; $('cardTitle').append(' ', t); }
     $('cardText').hidden = !text; $('cardText').textContent = text || '';
+    $('cardExtra').replaceChildren();
     const dl = $('cardDl'); dl.replaceChildren(); dl.classList.toggle('dep', !!dep); $('card').classList.toggle('dep-card', !!dep);   // dep: odjezdy (řádek = spoj)
     for (const [k, v] of rows) {
       if (v === undefined || v === null || v === '') continue;
@@ -29,6 +31,7 @@
     $('card').style.transform = '';
     $('card').hidden = false;
     setReport(`pt:${lat.toFixed(5)},${lon.toFixed(5)}`, title, lon, lat);     // výchozí cíl hlášení = místo, budova ho přepíše
+    for (const fn of cardHooks) try { fn({ title, text, lon, lat, k, building: state.sel, el: $('cardExtra') }); } catch (err) { console.error(err); }
   }
   // hlášení nepřesností: jen když je zapnuté v mesto.json ("hlaseni": true) a běží server z hlaseni/
   const HLASENI = {{HLASENI}};
@@ -61,6 +64,7 @@
     return best;
   }
   function showBuilding(b) {
+    for (const h of buildingClicks) if (h.fn(b) === true) return;   // doplněk budovu obsloužil sám (např. odjezdová tabule nádraží)
     state.sel = b;
     const pl = placeOf(b);
     const nm = pl ? pl.name : b.name;

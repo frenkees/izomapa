@@ -277,11 +277,12 @@
     return { threshold, allowed };
   }
   let tShare = 1, tShareT = 0, tShareCount = -1, tShareSlow = null, tAllowed = null;
-  const carActive = (c) => c.q <= tShare && (!tAllowed || tAllowed.has(c)) && (c.t !== 'garbage' || state.night < 0.5);   // popeláři jen ve dne
+  let trafficHook = null;                                  // doplněk (Izomapa.setTrafficHook): share(r, dir) násobí podíl jedoucích aut na kusu, speed(r, dir) jejich rychlost
+  const carActive = (c) => c.q <= tShare * (trafficHook?.share ? trafficHook.share(roads[c.r], c.dir) : 1) && (!tAllowed || tAllowed.has(c)) && (c.t !== 'garbage' || state.night < 0.5);   // popeláři jen ve dne
   // rychlost podle limitu z dat, jinak odhad podle třídy silnice; c.f je povaha řidiče
   const CLASS_KMH = { motorway: 110, trunk: 90, primary: 50, secondary: 50, tertiary: 50, unclassified: 40, residential: 30, living_street: 20 };
   const roadSpeed = (r) => (r.x ? Math.min(r.l || 50, 50) : r.l || CLASS_KMH[r.c] || 40) / 3.6;   // r.x = nájezdová rampa
-  const carSpeed = (c, r) => Math.min(c.truck ? Math.min(roadSpeed(r), 22) * 0.85 : roadSpeed(r), (c.T.vmax || 999) / 3.6) * c.f;   // nákladní auta o něco pomaleji, popeláři a traktory pomalu
+  const carSpeed = (c, r) => Math.min(c.truck ? Math.min(roadSpeed(r), 22) * 0.85 : roadSpeed(r), (c.T.vmax || 999) / 3.6) * c.f * (trafficHook?.speed ? trafficHook.speed(r, c.dir) : 1);   // nákladní auta o něco pomaleji, popeláři a traktory pomalu
   // výstražná zařízení přejezdu podle ČR (o = bod u pravého okraje vozovky před přejezdem, o.m bod na ose, o.dir směr jízdy po kusu, o.geo z xGeo).
   // Kreslí se ve světě (toImg), takže kříž, světla i rameno jsou natočené k řidičům přijíždějícím k přejezdu. Rozměry zvětšené ×XE kvůli čitelnosti.
   // Výstraha (střídavě blikající červená) začne se zavřením přejezdu (~25 s před vlakem), závory se sklápějí po XC_WARN ms výstrahy
@@ -584,16 +585,17 @@
       index.push({ label: nm, kind: 'zastávka', k: `c${Math.round(s.x / (2 * cam.half))}_${Math.round(s.y / (2 * cam.half))}`, n: norm(nm), go: () => { goTo(s.ix, s.iy, 2); showStop(s); } });
     }
   }
-  function stopDepartures(nid) {                             // [s do odjezdu, spoj] na hodinu dopředu (bez cílové zastávky spoje), i noční spoje po půlnoci
+  function stopDepartures(nid, vlaky = false, horizont = 3600) {   // [s do odjezdu, spoj] na hodinu dopředu (bez cílové zastávky spoje), i noční spoje po půlnoci; nid = zastávka nebo Set zastávek
+    const je = nid instanceof Set ? (q) => nid.has(q) : (q) => q === nid;
     const p = pragueNow(), y = new Date(); y.setDate(y.getDate() - 1);
     const zit = new Date(); zit.setDate(zit.getDate() + 1);
     let today = mhdServices(p.d, p.wd, true);
     if (!MHD.trips.some((t) => today.has(t[2]))) today = mhdServices(p.d, p.wd, false);
     const yest = mhdServices(ymd(y), (p.wd + 6) % 7, false), tom = mhdServices(ymd(zit), (p.wd + 1) % 7, false), out = [];
     for (const [svc, base] of [[today, 0], [yest, -86400], [tom, 86400]]) for (const t of MHD.trips) {
-      if (!svc.has(t[2]) || MHD.routes[t[0]][1] === 2) continue;
+      if (!svc.has(t[2]) || (MHD.routes[t[0]][1] === 2) !== vlaky) continue;
       const z = t[6];
-      for (let k = 0; k < z.length - 2; k += 2) if (z[k] === nid) { const dt = base + t[3] + z[k + 1] - p.s; if (dt >= -20 && dt <= 3600) out.push([dt, t]); }
+      for (let k = 0; k < z.length - 2; k += 2) if (je(z[k])) { const dt = base + t[3] + z[k + 1] - p.s; if (dt >= -20 && dt <= horizont) out.push([dt, t]); }
     }
     return out.sort((a, b) => a[0] - b[0]);
   }

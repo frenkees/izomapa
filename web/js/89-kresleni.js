@@ -63,6 +63,7 @@
       }
       ctx.textAlign = 'start';
     }
+    runFrameLayer('ground', frameView, t);                 // doplňky: na zemi pod vozidly (např. barva ulic podle zácp)
     // doprava
     if ($('l-traffic').checked) {
       if (now - tShareT > 5000 || tShareCount !== cars.length || tShareSlow !== (eco || SLOW)) {

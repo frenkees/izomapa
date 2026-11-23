@@ -16,7 +16,7 @@
     },
     onFrame(fn, options = {}) {
       if (typeof fn !== 'function') return () => {};
-      const layer = options?.layer === 'world' || options?.layer === 'top' ? options.layer : 'sky';
+      const layer = ['ground', 'world', 'top'].includes(options?.layer) ? options.layer : 'sky';
       const entry = { fn, layer, priority: options?.priority ?? 0 };
       pluginFrames.push(entry); pluginFrames.sort((a, b) => b.priority - a.priority);
       return () => { const i = pluginFrames.indexOf(entry); if (i >= 0) pluginFrames.splice(i, 1); };
@@ -52,7 +52,34 @@
       else if (typeof env.night === 'number') $('realTime').checked = false;
       if (typeof env.night === 'number') { state.night = Math.max(0, Math.min(1, env.night)); $('night').value = Math.round(state.night * 100); applyTime(); }
     },
-    getUiSlot(slotName = 'sidebar-tabs') { return slotName === 'sidebar-tabs' ? $('pluginTabsSlot') : null; },
+    // sloty: 'sidebar-tabs' záložky u panelu, 'karta' prostor v kartě pod údaji (vyprázdní se při každém otevření karty, plnit z onCard),
+    // 'vrstvy' seznam přepínačů Vrstvy v menu (doplněk si sem přidá vlastní <label><input type="checkbox"> …</label>)
+    getUiSlot(slotName = 'sidebar-tabs') { return ({ 'sidebar-tabs': $('pluginTabsSlot'), karta: $('cardExtra'), vrstvy: document.querySelector('.layers') })[slotName] ?? null; },
+    // ---------- rozšíření (návrh pro upstream) ----------
+    // karta: fn({ title, text, lon, lat, k, building, el }) po každém otevření karty (budova, místo, zastávka); el = slot 'karta'
+    onCard(fn) { cardHooks.push(fn); return () => { const i = cardHooks.indexOf(fn); if (i >= 0) cardHooks.splice(i, 1); }; },
+    // klik na budovu (i z hledání): fn(b) dostane záznam budovy (id, oid, name, cls, addr, lon, lat, hull, k); vrať true = karta se neotevře
+    onBuildingClick(fn, options = {}) {
+      const entry = { fn, priority: options?.priority ?? 0 };
+      buildingClicks.push(entry); buildingClicks.sort((a, b) => b.priority - a.priority);
+      return () => { const i = buildingClicks.indexOf(entry); if (i >= 0) buildingClicks.splice(i, 1); };
+    },
+    // cíl hlášení nepřesnosti pro otevřenou kartu ({ target: 'b:<oid>' | 'pt:lat,lon', title, lon, lat }), pro vlastní formulář doplňku
+    getReportTarget: () => (repTarget ? { ...repTarget } : null),
+    // přídavná vrstva dlaždic nad čtverci (vyrábí ji dzi.py jako další variantu v tiles.json, např. plachta_summer):
+    // variant(season, l) vrátí název varianty pro období a čtverec, nebo null (vypnuto); light: true = noční světla. refresh() po změně stavu.
+    addTileLayer(id, { variant, light = false } = {}) {
+      tileExtras.set(id, { variant: variant || (() => null), light }); applyExtras();
+      return { refresh: () => applyExtras(), remove: () => { tileExtras.delete(id); applyExtras(); } };
+    },
+    hasTileVariant: (v) => LAYERS.some((l) => l.src(v)),
+    // hustota a rychlost aut: { share(r, dir) -> násobek podílu jedoucích aut (0–1, víc aut než bez doplňku nepřibude), speed(r, dir) -> násobek rychlosti }
+    // r = kus silnice z getRoads(), dir 1 / -1 = po / proti směru kusu; volá se pro každé auto v každém snímku (mít to rychlé, kešovat). null = vypnout.
+    setTrafficHook(h) { trafficHook = h || null; },
+    getRoads: () => roads,                                 // kusy silnic načtených čtverců (w svět m, p obrázek, c třída, o jednosměrka, ln pruhy, k čtverec, L délka a data z overlay)
+    getMhd: () => (MHD.on ? MHD : null),                   // jízdní řády z mhd.json (routes, trips, names, stops…), null bez MHD nebo před načtením
+    // odjezdy: [[s do odjezdu, spoj z mhd.json trips], …] seřazené; stops = index zastávky (MHD.names) nebo Set indexů
+    departures: (stops, { trains = false, horizon = 3600 } = {}) => (MHD.on ? stopDepartures(stops, trains, horizon) : []),
   };
   if (OV.doplnky && Object.keys(OV.doplnky).length) {
     const loadedStyles = new Set(), loadedScripts = new Map();
