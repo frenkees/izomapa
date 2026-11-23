@@ -1,0 +1,17 @@
+{
+  "stanice": {
+    "nazev": "Hlavní nádraží",
+    "lat": 50.214528,
+    "lon": 15.810767,
+    "budova_re": "^Hradec Králové,? hlavní nádraží",
+    "zastavka_re": "^Hradec Králové,? hlavní nádraží"
+  },
+  "titulek": "HLAVNÍ NÁDRAŽÍ · ODJEZDY",
+  "radku": 7,
+  "sirky": [5, 8, 15, 2],
+  "horizont_h": 12,
+  "zkratky": [
+    [" hlavní nádraží", " hl.n."], [" nad Kněžnou", " n.K."], [" nad Labem", " n.L."], [" nad Orlicí", " n.O."], [" nad Metují", " n.M."], [" nad Cidlinou", " n.C."],
+    ["nádraží", "nádr."], ["Slezské Předměstí", "Slez.Předm."]
+  ]
+}

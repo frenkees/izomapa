@@ -1,0 +1,18 @@
+{
+  "arena": {
+    "lat": 50.206419,
+    "lon": 15.845422,
+    "azimut": 110.4,
+    "stozary": [[-11.4, -88.9], [69.9, -61.1], [15.5, 73.3], [-62.1, 47.9]],
+    "obvod": { "pul_s": 70, "pul_t": 50, "polomer": 15 },
+    "budova": [[40, 47], [40, 73], [-36, 73], [-36, 47]],
+    "karta_re": "Malšovick|FINEP"
+  },
+  "zdroje": ["api/zapasy", "zapasy.json"],
+  "odkaz": "https://www.fchk.cz/matches/MUZ",
+  "zkratky": {
+    "FC Hradec Králové": "HKR", "Bohemians Praha 1905": "BOH", "SK Slavia Praha": "SLA", "AC Sparta Praha": "SPA", "FC Viktoria Plzeň": "PLZ",
+    "FC Baník Ostrava": "OVA", "FC Slovan Liberec": "LIB", "FK Jablonec": "JAB", "SK Sigma Olomouc": "OLO", "FK Mladá Boleslav": "MBO", "1.FC Slovácko": "SLO",
+    "FK Teplice": "TEP", "FC Zlín": "ZLN", "SK Artis Brno": "ART", "FC Zbrojovka Brno": "ZBR", "FK Pardubice": "PCE", "MFK Karviná": "KAR", "SK Dynamo České Budějovice": "CBU"
+  }
+}

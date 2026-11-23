@@ -1,0 +1,8 @@
+{
+  "id": "hk_zapasy",
+  "name": "Zápasy FC Hradec Králové a LED aréna",
+  "version": "1.0.0",
+  "description": "U Malšovické arény svítí při domácím zápase lízátka, obrazovka ukazuje skóre, v noci obíhá fasádu LED světlo; karta arény nabízí rozpis. Data z /api/zapasy (záloha zapasy.json).",
+  "hook": "overlay_hook.py",
+  "scripts": ["hk_zapasy.js"]
+}

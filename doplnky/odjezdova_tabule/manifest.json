@@ -1,0 +1,9 @@
+{
+  "id": "odjezdova_tabule",
+  "name": "Odjezdová tabule vlaků",
+  "version": "1.0.0",
+  "description": "Mechanická tabule s klapkami (Solari) s nejbližšími odjezdy vlaků z hlavního nádraží podle jízdního řádu. Otevře ji klik na budovu nádraží nebo přiblížení k němu.",
+  "hook": "overlay_hook.py",
+  "scripts": ["odjezdova_tabule.js"],
+  "styles": ["odjezdova_tabule.css"]
+}

@@ -1,0 +1,24 @@
+/* odjezdová tabule: mechanická tabule s klapkami (Solari); každé písmeno jsou dvě půlky, které se překlápí */
+.board { position: fixed; z-index: 5; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  width: min(640px, calc(100vw - 24px)); background: #101216; border: 3px solid #4a4f58; box-shadow: 4px 4px 0 rgba(0, 0, 0, .45), inset 0 0 0 2px #07080a;
+  padding: 10px 12px 8px; font-family: "Atkinson Hyperlegible", system-ui, sans-serif; color: #f4efd8; --fs: min(19px, calc((100vw - 120px) / 26.6)); }
+.board[hidden] { display: none; }
+.bd-head { display: flex; align-items: center; gap: 10px; padding: 0 38px 8px 0; position: relative; font-family: var(--display); font-size: calc(var(--fs) * .95); letter-spacing: .06em; color: #e8e8e2; }
+.bd-head .bd-clock { margin-left: auto; color: #ffd24a; font-variant-numeric: tabular-nums; font-size: calc(var(--fs) * 1.15); }
+.bd-head .close { position: absolute; top: -4px; right: -4px; width: 32px; height: 32px; padding: 0; }
+.bd-row { display: flex; gap: calc(var(--fs) * .85); margin-top: 5px; }
+.bd-grp { display: flex; gap: 2px; }
+.fl { position: relative; display: inline-block; width: calc(var(--fs) * .84); height: calc(var(--fs) * 1.8); perspective: calc(var(--fs) * 14); }
+.fl .h { position: absolute; left: 0; right: 0; height: 50%; overflow: hidden; display: block; font-style: normal; }
+.fl .t, .fl .ft { top: 0; border-radius: 3px 3px 0 0; background: linear-gradient(#34373d, #202226); }
+.fl .bt, .fl .fb { top: 50%; border-radius: 0 0 3px 3px; background: linear-gradient(#18191c, #0d0e10); }
+.fl .ft { transform-origin: 50% 100%; backface-visibility: hidden; visibility: hidden; z-index: 3; }
+.fl .fb { transform-origin: 50% 0; backface-visibility: hidden; visibility: hidden; z-index: 3; }
+.fl b { position: absolute; left: 0; right: 0; height: calc(var(--fs) * 1.8); line-height: calc(var(--fs) * 1.8); text-align: center; font-weight: 700; font-size: calc(var(--fs) * 1.28);
+  color: #f6f0d9; text-shadow: 0 1px 0 rgba(0, 0, 0, .6); }
+.fl .t b, .fl .ft b { top: 0; }
+.fl .bt b, .fl .fb b { top: calc(var(--fs) * -0.9); }
+.fl::after { content: ''; position: absolute; left: 0; right: 0; top: calc(50% - 1px); height: 2px; background: #040405; z-index: 4; box-shadow: 0 1px 0 rgba(255, 255, 255, .07); }
+.fl::before { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 1px #050506; border-radius: 3px; z-index: 5; pointer-events: none; }
+.bd-foot { margin-top: 8px; font-size: calc(var(--fs) * .62); color: #8e939c; letter-spacing: .03em; }
+@media (max-width: 640px) { .board { bottom: calc(env(safe-area-inset-bottom, 0px) + 70px); } }
