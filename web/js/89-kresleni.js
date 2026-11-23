@@ -58,13 +58,13 @@
       const xFront = [];                                  // výstražníky před kolejí (blíž k divákovi) až po vlaku, ať je vlak nepřekryje
       if (sx > 0.25) for (const [r, z] of xings) {        // výstražník před přejezdem: zavřeno střídavě červená, otevřeno bílá přerušovaná
         if (!shown(r.k)) continue;
-        const dc = depth(z[1], z[2], gz(z[1], z[2]));
-        for (const d of [-6, 6]) {                         // výstražník z obou stran kolejí (když kus silnice pokračuje)
-          const sp = d < 0 ? z.s0 + d : z.s1 + d;
-          if (sp < 0 || sp > r.L) continue;
-          const o = curbPt(along(r, sp), d < 0 ? 1 : -1, 4), dp = o.d;   // vpravo u okraje vozovky pro auta, která k přejezdu jedou
+        const dc = depth(z[1], z[2], gz(z[1], z[2])), G = xGeo(r, z);
+        for (const dir of [1, -1]) {                       // výstražník (a závora) z obou stran kolejí vpravo pro auta, která k přejezdu jedou (když kus silnice pokračuje)
+          const g = G[dir], sp = g ? (dir > 0 ? z.s0 : z.s1) + dir * g.a : -1;
+          if (!g || sp < 0 || sp > r.L) continue;
+          const m = along(r, sp), o = curbPt(m, dir, g.bP), dp = o.d; o.m = m; o.geo = g; o.dir = dir;
           if (!vis(o.ix, o.iy) || occluded(o.ix, o.iy, dp) || occluded(o.ix, o.iy - 30, dp)) continue;   // za budovou (pata nebo výstražník) se nekreslí
-          if (dp < dc) xFront.push([o, z]); else drawXPost(o, z, sx, ox, oy, now, night);
+          if (dp < dc) xFront.push([o, z]); else drawXDev(o, z, sx, ox, oy, now, night);
         }
       }
       if (sx > 0.25) for (const [r, z] of sigPosts) {     // semafor vpravo u stop čáry pro auta, která ke křižovatce jedou
@@ -79,7 +79,7 @@
       }
       if (sx > 0.12) for (const c of cars) {
         if (!carActive(c) || !shown(roads[c.r].k)) continue;
-        const o = along(roads[c.r], c.s); o.dirSign = c.dir; o.lane = roads[c.r].o ? 0 : 1.6;
+        const o = along(roads[c.r], c.s); o.dirSign = c.dir; o.lane = c.lo ?? laneOff(c, roads[c.r], c.dir);
         if (!vis(o.ix, o.iy)) continue;
         if (c.t !== 'semi') { drawVehicle(o, c.T.len, c.T.wid, c.col, sx, ox, oy, night, c.T.code); continue; }
         const q = trailerPos(c), nav = () => drawVehicle(q, TRAILER, 2.55, c.col2, sx, ox, oy, night, 8, 2);   // kamion: vzdálenější díl dřív
@@ -130,7 +130,7 @@
         if (vis(o.ix, o.iy, 120)) drawVehicle(o, 15, 2.5, 't3', sx, ox, oy, night, 2);
       }
       flushLights(night, sx);
-      for (const [o, z, sg] of xFront) if (sg) drawSigPost(o, z, sx, ox, oy, night); else drawXPost(o, z, sx, ox, oy, now, night);   // až po světlech aut, ať je kužel nepřekryje
+      for (const [o, z, sg] of xFront) if (sg) drawSigPost(o, z, sx, ox, oy, night); else drawXDev(o, z, sx, ox, oy, now, night);   // až po světlech aut, ať je kužel nepřekryje
     }
     // chodci (jen zblízka, krok a pohyb jen u těch na obrazovce)
     if ($('l-people').checked && PEOPLE.length) {

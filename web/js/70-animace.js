@@ -28,7 +28,7 @@
     }
     return true;
   }
-  const blocked = (z) => z.rb ? !ringFree(z.rb) : (z.g || z.xc).closed;    // vjezd na kruhový objezd, zavřený přejezd (skupina z.g) nebo semafor (fáze z.xc)
+  const blocked = (z) => z.rb ? !ringFree(z.rb) : z.g ? z.g.closed || xP(z.g, performance.now()) > 0 : z.xc.closed;    // vjezd na kruhový objezd, zavřený přejezd (skupina z.g, i dokud se závory zvedají) nebo semafor (fáze z.xc)
   // železniční přejezdy (z[0] metry od začátku kusu, z[1..2] svět): zavřeno ~25 s před příjezdem vlaku, dokud neprojede poslední vůz
   // Přejezdy přes sousední koleje (do XG_M od sebe) tvoří jeden přejezd: jedny výstražníky před první a za poslední kolejí,
   // zavřeno, když jede vlak po kterékoli koleji (v OSM je přejezd zvlášť na každé koleji).
@@ -38,12 +38,50 @@
     if (!XC.has(key)) XC.set(key, { x: z[1], y: z[2], closed: false, on: null });
     z.xc = XC.get(key);
     let g = XG.find((q) => q.pts.some(([x, y]) => Math.hypot(x - z[1], y - z[2]) < XG_M));
-    if (!g) XG.push(g = { pts: [], cs: new Set(), closed: false });
+    if (!g) XG.push(g = { pts: [], cs: new Set(), closed: false, typ: xTyp(r, z) });
     g.pts.push([z[1], z[2]]); g.cs.add(z.xc); z.g = g;
     const lead = xings.find(([r2, z2]) => r2 === r && z2.g === g);       // na jednom kusu silnice jedny výstražníky pro celou skupinu
     if (lead) { lead[1].s0 = Math.min(lead[1].s0, z[0]); lead[1].s1 = Math.max(lead[1].s1, z[0]); }
     else { z.s0 = z.s1 = z[0]; xings.push([r, z]); }
   }
+  // druh zabezpečení (data ho nemají, odhad podle třídy silnice): Z = světla + závory, S = jen světla, K = jen výstražný kříž
+  const XTYP = { motorway: 'Z', trunk: 'Z', primary: 'Z', secondary: 'Z', tertiary: 'Z', unclassified: 'ZS', residential: 'ZS' };
+  const xTyp = (r, z) => { const t = XTYP[r.c] || 'K'; return t !== 'ZS' ? t : (Math.round(z[1] / 7) + Math.round(z[2] / 7)) % 3 ? 'Z' : 'S'; };
+  let XTRAIN = null;                                       // tvary tras vlaků (pro směr koleje na přejezdu)
+  function trackDir(c) {                                   // jednotkový směr koleje u přejezdu, 0 = nenalezeno, null = jízdní řády ještě nejsou
+    if (c.td !== undefined) return c.td;
+    if (!MHD.on || !MHD.shapes || !MHD.trips) return null;
+    if (!XTRAIN) XTRAIN = new Set(MHD.trips.filter((t) => MHD.routes[t[0]] && MHD.routes[t[0]][1] === 2).map((t) => t[1]));
+    let best = 8, td = 0;
+    for (const i of XTRAIN) {
+      const w = MHD.shapes[i] && MHD.shapes[i].w; if (!w) continue;
+      for (let k = 1; k < w.length; k++) {
+        const a = w[k - 1], b = w[k], dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy; if (!l2) continue;
+        const t = Math.max(0, Math.min(1, ((c.x - a[0]) * dx + (c.y - a[1]) * dy) / l2)), d = Math.hypot(a[0] + dx * t - c.x, a[1] + dy * t - c.y);
+        if (d < best) { best = d; const l = Math.sqrt(l2); td = [dx / l, dy / l]; }
+      }
+    }
+    return (c.td = td);
+  }
+  // poloha zařízení pro auta jedoucí po kusu (1) a proti (-1): a = m před přejezdem po ose silnice (záporné), bP = pant závory u pravého okraje,
+  // bT = konec ramene (příčně od osy, vpravo kladně; půlzávora přes pruh příjezdu, u jednosměrky přes celou šířku), sd = čelo stojícího auta.
+  // Rameno je kolmo k ose silnice; při šikmém křížení se zařízení posune od přejezdu tak, aby celé rameno bylo aspoň ~5 m od osy koleje.
+  function xGeo(r, z) {
+    const td = trackDir(z.xc);
+    if (z.xg && (z.xg.ok || td === null)) return z.xg;
+    const m = along(r, z[0]), L = Math.hypot(m.dx, m.dy) || 1, ux = m.dx / L, uy = m.dy / L;
+    const tu = td ? td[0] * ux + td[1] * uy : 0, tn = td ? td[0] * uy - td[1] * ux : 1, sn = Math.max(0.42, Math.abs(tn)), k = tu / (sn * (Math.sign(tn) || 1));   // kolej b m vpravo od osy leží b·k od přejezdu
+    const out = { ok: td !== null };
+    for (const dir of [1, -1]) {
+      const mine = r.ln ? (dir > 0 ? r.ln[0] : r.ln[1]) : 1, other = r.ln ? (dir > 0 ? r.ln[1] : r.ln[0]) : (r.o ? 0 : 1);
+      if ((r.o && r.o !== dir) || !mine) { out[dir] = null; continue; }
+      const bP = (other ? mine * LANE_W : mine * LANE_W / 2) + 0.9, bT = other ? 0.25 : 0.4 - mine * LANE_W / 2;
+      const a = Math.max(-18, Math.min(0, bT * k, (bP + 0.6) * k) - 5 / sn);
+      out[dir] = { a, bP, bT, sd: -a + 0.8 };
+    }
+    return (z.xg = out);
+  }
+  const xStop = (r, z, c) => { const g = xGeo(r, z)[c.dir]; return g ? g.sd + c.T.len / 2 : 6; };   // střed auta stojícího před závorou
   function xingShapes(c) {                                 // na kterých tratích (tvar, metry od začátku) přejezd leží
     c.on = [];
     MHD.shapes.forEach((sh, i) => {
@@ -82,7 +120,10 @@
         return c.on.some(([sh, s]) => sh === trip[1] && trainS(trip, el + 25) + T / 2 > s - 5 && trainS(trip, el) - T / 2 < s + 8);
       });
     }
-    for (const g of XG) g.closed = [...g.cs].some((c) => c.closed);
+    for (const g of XG) {                                  // čas změny: závory se spouštějí až po zahájení výstrahy a zvedají po průjezdu
+      const v = [...g.cs].some((c) => c.closed);
+      if (g.closed !== v) { const t = performance.now(); g.p0 = xP(g, t); g.closed = v; g.tchg = t; }
+    }
   }
   // semafory (OV.signals z nastroje/semafory.py, [x, y, křižovatka]): každá křižovatka má cyklus SIG_CYC s pro dvě osy
   // (osa 0 = směr nejvyšší třídy silnice, kolmé příjezdy osa 1); samotný přechod má jen osu 0 a zbytek cyklu patří chodcům.
@@ -197,7 +238,7 @@
       else if (c.t === 'semi') { c.col = CABC[i % CABC.length]; c.col2 = BOXC[(i >> 3) % BOXC.length]; }
       else if (c.t === 'garbage') c.col = '#ecebe6|#e8742a';
       else if (c.t === 'tractor') c.col = rnd(i + 17) < 0.7 ? '#3f7a2e' : '#b52a1e';
-      c.T = VTYP[c.t]; c.pr = -1;
+      c.T = VTYP[c.t]; c.pr = -1; c.lj = rnd(i + 19);
       if (c.dir < 0) c.s = roads[c.r].L - c.s;
       cars.push(c);
     }
@@ -241,21 +282,78 @@
   const CLASS_KMH = { motorway: 110, trunk: 90, primary: 50, secondary: 50, tertiary: 50, unclassified: 40, residential: 30, living_street: 20 };
   const roadSpeed = (r) => (r.x ? Math.min(r.l || 50, 50) : r.l || CLASS_KMH[r.c] || 40) / 3.6;   // r.x = nájezdová rampa
   const carSpeed = (c, r) => Math.min(c.truck ? Math.min(roadSpeed(r), 22) * 0.85 : roadSpeed(r), (c.T.vmax || 999) / 3.6) * c.f;   // nákladní auta o něco pomaleji, popeláři a traktory pomalu
-  function drawXPost(o, z, sx, ox, oy, now, night) {      // výstražník s křížem; v noci světlo září
-    const x = ox + o.ix * sx, y = oy + o.iy * sx, h = 30 * sx, q = Math.max(2.5, 3.4 * sx), ph = Math.floor(now / 500) % 2;
-    ctx.fillStyle = '#26262a'; ctx.fillRect(x - q * 0.35, y - h - q * 2.6, q * 0.7, h + q * 2.6);
-    ctx.strokeStyle = '#d23a2e'; ctx.lineWidth = q * 0.9; ctx.beginPath();
-    ctx.moveTo(x - q * 1.8, y - h - q * 3.6); ctx.lineTo(x + q * 1.8, y - h - q * 1.2); ctx.moveTo(x + q * 1.8, y - h - q * 3.6); ctx.lineTo(x - q * 1.8, y - h - q * 1.2); ctx.stroke();
-    ctx.strokeStyle = '#f4f4f0'; ctx.lineWidth = q * 0.45; ctx.stroke();
-    ctx.fillStyle = '#26262a'; ctx.fillRect(x - q * 2, y - h - q * 0.2, q * 4, q * 1.6);
-    const lamp = z.g.closed ? [x + (ph ? 1.05 : -1.05) * q, '#ff4438', '255,68,56'] : Math.floor(now / 900) % 2 ? [x, '#f4f4f0', '244,244,240'] : null;
-    if (!lamp) return;
-    if (night > 0.3) {
-      const g = ctx.createRadialGradient(lamp[0], y - h + q * 0.6, 0, lamp[0], y - h + q * 0.6, q * 3.5);
-      g.addColorStop(0, `rgba(${lamp[2]},${0.55 * Math.min(1, (night - 0.3) / 0.4)})`); g.addColorStop(1, `rgba(${lamp[2]},0)`);
-      ctx.fillStyle = g; ctx.fillRect(lamp[0] - q * 3.5, y - h + q * 0.6 - q * 3.5, q * 7, q * 7);
+  // výstražná zařízení přejezdu podle ČR (o = bod u pravého okraje vozovky před přejezdem, o.m bod na ose, o.dir směr jízdy po kusu, o.geo z xGeo).
+  // Kreslí se ve světě (toImg), takže kříž, světla i rameno jsou natočené k řidičům přijíždějícím k přejezdu. Rozměry zvětšené ×XE kvůli čitelnosti.
+  // Výstraha (střídavě blikající červená) začne se zavřením přejezdu (~25 s před vlakem), závory se sklápějí po XC_WARN ms výstrahy
+  // po dobu XC_MOVE ms; po průjezdu posledního vozu se zvedají (XC_MOVE ms) a výstraha končí, až jsou nahoře. V klidu bliká bílé světlo.
+  const XC_WARN = 9000, XC_MOVE = 5000, XC_UP = 87, XE = 1.35, LANE_W = 3.2;
+  function xP(g, t) {                                      // poloha závor skupiny přejezdu 0 = nahoře, 1 = dole (jen z času změny, nezávisle na kreslení)
+    if (g.typ !== 'Z') return 0;
+    const p0 = g.p0 || 0, e = t - (g.tchg ?? -1e9);
+    return g.closed ? Math.min(1, p0 + Math.max(0, e - (p0 > 0 ? 0 : XC_WARN)) / XC_MOVE) : Math.max(0, p0 - e / XC_MOVE);
+  }
+  function xFrame(o, sx, ox, oy) {                         // místní souřadnice zařízení: lat vpravo od řidiče (m), fw ve směru jízdy (m), h nad zemí (m)
+    const m = o.m, L = Math.hypot(m.dx, m.dy) || 1, fx = m.dx / L * o.dir, fy = m.dy / L * o.dir, rx = fy, ry = -fx, h0 = m.z ?? gz(o.x, o.y);
+    const P = (lat, fw, h) => { const [ix, iy] = toImg(o.x + rx * lat + fx * fw, o.y + ry * lat + fy * fw, h0 + h); return [ox + ix * sx, oy + iy * sx]; };
+    const D = (lat, fw) => depth(o.x + rx * lat + fx * fw, o.y + ry * lat + fy * fw, h0);
+    return { P, D, mp: sx / cam.mpp, front: D(0, -1) < D(0, 0) };   // front: líc (k řidičům) je natočený k divákovi
+  }
+  const xLine = (a, b, w, col) => { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); };
+  const xQuad = (q, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(q[0][0], q[0][1]); for (let i = 1; i < q.length; i++) ctx.lineTo(q[i][0], q[i][1]); ctx.closePath(); ctx.fill(); };
+  function xLamp(p, r, on, col, rgb, off, night) {         // svítilna; rozsvícená má i ve dne malou zář, v noci velkou
+    r = Math.max(1, r);
+    if (on) {
+      const R = r * (night > 0.3 ? 7 : 3.2), g = ctx.createRadialGradient(p[0], p[1], 0, p[0], p[1], R);
+      g.addColorStop(0, `rgba(${rgb},${night > 0.3 ? 0.35 + 0.35 * Math.min(1, (night - 0.3) / 0.4) : 0.3})`); g.addColorStop(1, `rgba(${rgb},0)`);
+      ctx.fillStyle = g; ctx.fillRect(p[0] - R, p[1] - R, 2 * R, 2 * R);
     }
-    ctx.fillStyle = lamp[1]; ctx.fillRect(lamp[0] - q * 0.6, y - h + q * 0.05, q * 1.2, q * 1.1);
+    ctx.fillStyle = on ? col : off; ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 2 * Math.PI); ctx.fill();
+  }
+  const xWarn = (g, t) => g.typ !== 'K' && (g.closed || xP(g, t) > 0);
+  function drawXPost(o, z, sx, ox, oy, now, night) {      // výstražník: stožár, výstražný kříž, u PZS černý štít se dvěma červenými a bílým světlem, u závor zvonek
+    const c = z.g, F = xFrame(o, sx, ox, oy), P = F.P, t = performance.now(), la = 0.5, fw = -0.08;
+    const W = (m, min) => Math.max(min, m * XE * F.mp), top = (c.typ === 'K' ? 2.4 : 3.4) * XE;
+    xLine(P(la, 0, 0), P(la, 0, top + 0.05), W(0.1, 1.2), '#6d7279');   // stožár
+    const ch = top - 0.32 * XE, cw = 0.5 * XE, cv = 0.29 * XE;          // výstražný kříž (Andrejův): bílá břevna s červeným okrajem, rub šedý
+    const k1 = [P(la - cw, fw, ch - cv), P(la + cw, fw, ch + cv)], k2 = [P(la - cw, fw, ch + cv), P(la + cw, fw, ch - cv)];
+    const kr = F.front ? '#cf2a22' : '#7f8287', kw = F.front ? '#f7f6f1' : '#aeb1b5';
+    xLine(...k1, W(0.2, 2.2), kr); xLine(...k2, W(0.2, 2.2), kr); xLine(...k1, W(0.09, 1), kw); xLine(...k2, W(0.09, 1), kw);
+    if (c.typ === 'K') return;
+    const lh = 2.2 * XE, lw = 0.6 * XE, lv = 0.22 * XE;                 // štít se světly
+    xQuad([P(la - lw, fw, lh - lv), P(la + lw, fw, lh - lv), P(la + lw, fw, lh + lv), P(la - lw, fw, lh + lv)], '#141518');
+    xQuad([P(la - 0.15 * XE, fw, lh - lv), P(la + 0.15 * XE, fw, lh - lv), P(la + 0.15 * XE, fw, lh - lv - 0.3 * XE), P(la - 0.15 * XE, fw, lh - lv - 0.3 * XE)], '#141518');
+    if (c.typ === 'Z') { const b = P(la, 0, top + 0.12 * XE); ctx.fillStyle = '#3d4046'; ctx.beginPath(); ctx.arc(b[0], b[1], W(0.13, 1.5), Math.PI, 0); ctx.fill(); }   // zvonek
+    if (!F.front) return;                                  // ze zadu světla nejsou vidět
+    const warn = xWarn(c, t), ph = Math.floor(t / 500) % 2, white = !warn && Math.floor(t / 650) % 2 === 0, r = W(0.13, 1.2);
+    xLamp(P(la - 0.36 * XE, fw - 0.02, lh), r, warn && !ph, '#ff3b2f', '255,59,47', '#4b1714', night);
+    xLamp(P(la + 0.36 * XE, fw - 0.02, lh), r, warn && !!ph, '#ff3b2f', '255,59,47', '#4b1714', night);
+    xLamp(P(la, fw - 0.02, lh - lv - 0.15 * XE), r, white, '#f6f4ea', '246,244,234', '#55575c', night);
+  }
+  // závora (půlzávora přes pruh příjezdu): rameno v svislé rovině kolmé k ose silnice, pant na pohonu u okraje vozovky (o něco blíž ke koleji
+  // než výstražník), XC_UP° = zvednuto, 0° = vodorovně přes pruh; za pantem protizávaží, na rameni červenobílé pruhy a červená světla
+  function drawXArm(o, z, sx, ox, oy, now, night) {
+    const c = z.g; if (c.typ !== 'Z') return;
+    const F = xFrame(o, sx, ox, oy), P = F.P, t = performance.now(), p = xP(c, t), e = p * p * (3 - 2 * p);
+    const a = XC_UP * (1 - e) * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a), L = o.geo.bP - o.geo.bT, fw = 0.7, ph = 0.9 * XE;
+    const A = (s) => P(-s * ca, fw, ph + s * sa), W = (m, min) => Math.max(min, m * XE * F.mp);
+    xLine(P(0, fw, 0), P(0, fw, ph + 0.22 * XE), W(0.32, 2.5), '#aeb3b8');   // pohon závory
+    xLine(P(0, fw, ph + 0.16 * XE), P(0, fw, ph + 0.26 * XE), W(0.32, 2.5), '#4c5056');
+    xLine(A(-0.95), A(-0.1), W(0.2, 2.2), '#33363b');       // protizávaží
+    const w = W(0.1, 1.5), n = Math.max(4, Math.round(L / 0.55));
+    xLine(A(0), A(L), w + 1.2, '#3a1d1a');                   // obrys ramene
+    for (let k = 0; k < n; k++) xLine(A(L * k / n), A(L * (k + 1) / n), w, k % 2 ? '#f4f3ee' : '#d8342a');
+    const hub = A(0); ctx.fillStyle = '#26282c'; ctx.beginPath(); ctx.arc(hub[0], hub[1], W(0.09, 1.2), 0, 2 * Math.PI); ctx.fill();
+    const warn = xWarn(c, t), r = W(0.07, 1);
+    xLamp(A(L * 0.55), r, warn, '#ff3b2f', '255,59,47', '#5a1a16', night);
+    xLamp(A(L - 0.1), r, warn && Math.floor(t / 500) % 2 === 0, '#ff3b2f', '255,59,47', '#5a1a16', night);
+  }
+  function drawXDev(o, z, sx, ox, oy, now, night) {       // výstražník a závora, vzdálenější díl dřív
+    ctx.save(); ctx.lineCap = 'butt';
+    const F = xFrame(o, sx, ox, oy), armFirst = F.D(-0.5, 0.7) > F.D(0.5, 0);
+    if (armFirst) drawXArm(o, z, sx, ox, oy, now, night);
+    drawXPost(o, z, sx, ox, oy, now, night);
+    if (!armFirst) drawXArm(o, z, sx, ox, oy, now, night);
+    ctx.restore();
   }
   const curbPt = (o, side, off) => {                       // bod u pravého okraje vozovky pro auta jedoucí po kusu (side 1) nebo proti (-1)
     const L = Math.hypot(o.dx, o.dy) || 1, x = o.x + o.dy / L * side * off, y = o.y - o.dx / L * side * off, h = o.z ?? gz(x, y), [ix, iy] = toImg(x, y, h);
@@ -274,14 +372,27 @@
     }
     return false;
   }
+  // pruh: odsazení vpravo od osy kusu ve směru jízdy (m). r.ln = [pruhů po směru kusu, proti] z OSM (nastroje/pruhy.py, overlay.py);
+  // bez něj jednosměrka = jeden pruh uprostřed, obousměrná = jeden pruh v každém směru (1,6 m jako dřív). Víc pruhů jedním směrem:
+  // auta jedou vedle sebe, nákladní a pomalá vozidla vpravo; přejetí do jiného pruhu plynule (~2 s), ne skokem.
+  function laneOff(c, r, dir) {
+    const mine = r.ln ? (dir > 0 ? r.ln[0] : r.ln[1]) : 1, other = r.ln ? (dir > 0 ? r.ln[1] : r.ln[0]) : (r.o ? 0 : 1), n = Math.max(1, mine);
+    const j = c.truck || c.t === 'tractor' || c.t === 'garbage' ? n - 1 : Math.min(n - 1, Math.floor((c.lj ?? 0.5) * n));   // 0 = nejlevější pruh
+    return other ? LANE_W / 2 + j * LANE_W : (j - (n - 1) / 2) * LANE_W;
+  }
   function stepCar(c, dt) {
+    stepCarMove(c, dt);
+    const t = laneOff(c, roads[c.r], c.dir);
+    c.lo = c.lo === undefined || c.pr < 0 && Math.abs(t - c.lo) > 6 ? t : c.lo + Math.max(-1.8 * dt, Math.min(1.8 * dt, t - c.lo));
+  }
+  function stepCarMove(c, dt) {
     if (c.hold) { if (blocked(c.hold)) return; c.hold.q = null; c.hold = null; }
     const r = roads[c.r], next = c.s + carSpeed(c, r) * dt * c.dir;
     for (const zs of [r.jy, r.sg]) if (zs) for (const z of zs) {   // zavřený přejezd, plný kruhový objezd (6 m před) nebo červená/žlutá na semaforu (z.d m před bodem); fronta po c.T.gap m
       if (!blocked(z) || (z.t && z.t !== c.dir)) continue;  // semafor platí jen pro směr ke křižovatce
-      const D = z.d ?? 6, qi = c.dir > 0 ? 0 : 1, stop = z[0] - c.dir * (D + ((z.q && z.q[qi]) || 0));   // z.q = délka fronty v m
+      const D = z.d ?? 6, qi = c.dir > 0 ? 0 : 1, sd = z.g ? xStop(r, z, c) : D, stop = z[0] - c.dir * (sd + ((z.q && z.q[qi]) || 0));   // z.q = délka fronty v m; u přejezdu před závorou
       if (c.dir * (stop - c.s) >= 0 && c.dir * (next - stop) > 0) { c.s = stop; c.hold = z; (z.q = z.q || [0, 0])[qi] += c.T.gap; return; }
-      if (c.dir * (stop - c.s) < 0 && c.dir * (z[0] - c.dir * D - c.s) >= 0) { c.hold = z; (z.q = z.q || [0, 0])[qi] += c.T.gap; return; }   // fronta mezitím narostla za auto: zastavit na místě
+      if (c.dir * (stop - c.s) < 0 && c.dir * (z[0] - c.dir * (z.g ? Math.max(3, Math.min(sd, c.dir > 0 ? z[0] : r.L - z[0])) : D) - c.s) >= 0) { c.hold = z; (z.q = z.q || [0, 0])[qi] += c.T.gap; return; }   // fronta mezitím narostla za auto: zastavit na místě
     }
     c.s = next;
     if (c.s < 0 || c.s > r.L) {
@@ -307,9 +418,9 @@
   }
   function trailerPos(c) {                                  // návěs kamionu TAH m za tahačem, po předchozí silnici, když tahač právě odbočil
     const r = roads[c.r], done = c.dir > 0 ? c.s : r.L - c.s;
-    if (done >= TAH || c.pr < 0) { const o = along(r, Math.max(0, Math.min(r.L, c.s - TAH * c.dir))); o.dirSign = c.dir; o.lane = r.o ? 0 : 1.6; return o; }
+    if (done >= TAH || c.pr < 0) { const o = along(r, Math.max(0, Math.min(r.L, c.s - TAH * c.dir))); o.dirSign = c.dir; o.lane = c.lo ?? laneOff(c, r, c.dir); return o; }
     const q = roads[c.pr], rem = Math.min(q.L, TAH - done);
-    const o = along(q, c.pdir > 0 ? q.L - rem : rem); o.dirSign = c.pdir; o.lane = q.o ? 0 : 1.6; return o;
+    const o = along(q, c.pdir > 0 ? q.L - rem : rem); o.dirSign = c.pdir; o.lane = c.lo ?? laneOff(c, q, c.pdir); return o;
   }
   const bus = (() => {
     if (!OV.bus) return null;
