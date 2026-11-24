@@ -434,14 +434,15 @@
       const g0 = gz(p.x, p.y), vH = planeVisualH(p);
       const top = toImg(p.x, p.y, g0 + vH), bot = toImg(p.x, p.y, g0);
       const Xt = ox + top[0] * sx, Yt = oy + top[1] * sx, Xb = ox + bot[0] * sx, Yb = oy + bot[1] * sx;
-      if (!visScreen(Xb, Yb, 200) && !visScreen(Xt, Yt, 200)) continue;
+      if (!(Xb > -200 && Xb < cw + 200 && Math.max(Yt, Yb) > -200 && Math.min(Yt, Yb) < ch + 200)) continue;   // linka protíná obraz i když jsou oba konce mimo
       const R_ = 14, ux = toImg(p.x + R_, p.y, g0), uy = toImg(p.x, p.y + R_, g0);
       ctx.save();
       ctx.translate(Xb, Yb);
       ctx.transform((ux[0] - bot[0]) * sx, (ux[1] - bot[1]) * sx, (uy[0] - bot[0]) * sx, (uy[1] - bot[1]) * sx, 0, 0);
-      ctx.fillStyle = 'rgba(128,132,140,0.28)'; ctx.strokeStyle = 'rgba(110,114,122,0.55)'; ctx.lineWidth = 1 / Math.max(1, R_ * sx * 0.6);
-      ctx.beginPath(); ctx.arc(0, 0, 1, 0, 6.2832); ctx.fill(); ctx.stroke();
-      ctx.restore();
+      ctx.fillStyle = 'rgba(128,132,140,0.28)';
+      ctx.beginPath(); ctx.arc(0, 0, 1, 0, 6.2832); ctx.fill();
+      ctx.restore();                                                                   // cesta zůstala v souřadnicích zařízení, obrys je tak všude 1 px
+      ctx.strokeStyle = 'rgba(110,114,122,0.55)'; ctx.lineWidth = 1; ctx.stroke();
       ctx.save();
       ctx.strokeStyle = 'rgba(120,124,132,0.6)'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(Math.round(Xt) + 0.5, Yt); ctx.lineTo(Math.round(Xb) + 0.5, Yb); ctx.stroke();
