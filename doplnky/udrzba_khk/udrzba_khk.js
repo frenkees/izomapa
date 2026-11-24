@@ -3,7 +3,7 @@
 // Zdroj: veřejná mapa SÚS KHK (uskhk.eu/suhhkap) přes api/udrzba_khk (společná cache 5 min). Jen window.Izomapa.
 (() => {
   const ID = 'udrzba_khk';
-  const BARVY = ['148,183,36', '220,140,0', '195,84,57', '41,108,175'];
+  const BARVY = ['125,220,43', '255,163,26', '255,77,58', '61,155,255'];
   const POPIS = ['do 30 minut', '30 až 60 minut', '1 až 3 hodiny', '3 až 12 hodin'];
   const doc = typeof document !== 'undefined' ? document : null;
   let api = null, cfg = {}, off = [], box = null, leg = null, timer = null, mrtvy = false;
@@ -24,16 +24,16 @@
       const d = await r.json();
       S.pasma = [0, 1, 2, 3].map((i) => prevedLinie(d.z && d.z[i]));
       S.n = S.pasma.reduce((s, p) => s + p.length, 0); S.t = d.t || Date.now();
-      popisek();
+      S.img = S.pasma.map((p) => p.map((c) => c.map(([x, y]) => api.toImg(x, y, 0))));   // souřadnice obrazu pro minimapu
+      popisek(); if (api.refreshMinimap) api.refreshMinimap();
     } catch {}
   }
   function popisek() {
-    const n = box && box.querySelector('.udrzba-n'); if (!n) return;
-    n.textContent = S.n ? `(${S.n})` : '';
+    if (!box) return;
     legenda();
-    box.title = 'Zimní údržba silnic Královéhradeckého kraje: úseky, kudy v poslední době projel sypač nebo pluh, barevně podle stáří '
+    box.title = 'Sypače: zimní údržba silnic Královéhradeckého kraje, úseky, kudy v poslední době projel sypač nebo pluh, barevně podle stáří '
       + '(' + POPIS.map((p, i) => ['zelená', 'oranžová', 'červená', 'modrá'][i] + ' ' + p).join(', ') + '). '
-      + (S.n ? '' : 'Teď žádná nedávná údržba (mimo zimní sezónu bývá vrstva prázdná).');
+      + (S.n ? `Teď ${S.n} úseků. ` : 'Teď žádná nedávná údržba (mimo zimní sezónu bývá vrstva prázdná).');
   }
   function legenda() {                                      // plovoucí legenda barev, viditelná jen při zapnuté vrstvě
     if (!doc) return;
@@ -54,10 +54,10 @@
     const { sx, ox, oy } = view;
     ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     if (ztlum()) { ctx.fillStyle = 'rgba(16,20,28,0.5)'; ctx.fillRect(0, 0, view.cw, view.ch); }   // schematický režim: mapa i budovy ztlumené, úseky vyniknou
-    for (const okraj of [true, false]) for (let i = 3; i >= 0; i--) {   // nejdřív tmavý okraj, pak barva; nejstarší dospod, nejčerstvější navrch
+    for (const prochod of [0, 1, 2]) for (let i = 3; i >= 0; i--) {    // záře, tmavý okraj, sytá barva; nejstarší dospod, nejčerstvější navrch
       if (!S.pasma[i].length) continue;
-      ctx.strokeStyle = okraj ? 'rgba(10,12,18,0.85)' : `rgba(${BARVY[i]},0.95)`;
-      ctx.lineWidth = Math.max(2, sx * (okraj ? 7 : 5));
+      ctx.strokeStyle = prochod === 0 ? `rgba(${BARVY[i]},0.28)` : prochod === 1 ? 'rgba(10,12,18,0.9)' : `rgb(${BARVY[i]})`;
+      ctx.lineWidth = Math.max([9, 6, 4.2][prochod], sx * [22, 13, 9][prochod]);
       ctx.beginPath();
       for (const c of S.pasma[i]) {
         for (let k = 0; k < c.length; k++) {
@@ -72,10 +72,10 @@
   function ui() {                                           // přepínač ve Vrstvách (za Dopravou)
     const slot = api.getUiSlot('vrstvy'); if (!slot) return;
     box = doc.createElement('label');
-    box.innerHTML = '<input type="checkbox" id="l-udrzba"><span>Údržba silnic <span class="udrzba-n"></span></span><span class="udrzba-leg"><i class="a0"></i><i class="a1"></i><i class="a2"></i><i class="a3"></i></span>';
+    box.innerHTML = '<input type="checkbox" id="l-udrzba"><span>Sypače</span>';
     const sv = (() => { try { const v = localStorage.getItem('izo-udrzba'); return v === null ? true : v === '1'; } catch { return true; } })();
     const inp = box.querySelector('input'); inp.checked = sv;
-    inp.addEventListener('change', (e) => { try { localStorage.setItem('izo-udrzba', e.target.checked ? '1' : '0'); } catch {} legenda(); if (e.target.checked) nacti(); });
+    inp.addEventListener('change', (e) => { try { localStorage.setItem('izo-udrzba', e.target.checked ? '1' : '0'); } catch {} legenda(); if (api.refreshMinimap) api.refreshMinimap(); if (e.target.checked) nacti(); });
     popisek();
     const t = doc.getElementById('l-traffic'), row = t && t.closest ? t.closest('label') : null;
     if (row && row.parentNode === slot) row.after(box); else slot.appendChild(box);
@@ -83,6 +83,16 @@
   function start() {
     ui(); legenda(); nacti();
     off.push(api.onFrame(kresli, { layer: 'ground' }));
+    if (api.onMinimap) off.push(api.onMinimap((c, toM) => {        // minimapa: úseky silnic ve stejných barvách (celé město)
+      if (!on() || !S.n || !S.img) return;
+      c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
+      for (let i = 3; i >= 0; i--) {
+        c.strokeStyle = `rgb(${BARVY[i]})`; c.lineWidth = 3; c.beginPath();
+        for (const ln of S.img[i]) ln.forEach(([ix, iy], k) => { const [X, Y] = toM(ix, iy); if (k) c.lineTo(X, Y); else c.moveTo(X, Y); });
+        c.stroke();
+      }
+      c.restore();
+    }));
     const vis = () => { if (doc && !doc.hidden && Date.now() - S.last > cfg.poll_s * 1000 * 0.8) nacti(); };
     if (doc && doc.addEventListener) { doc.addEventListener('visibilitychange', vis); off.push(() => doc.removeEventListener('visibilitychange', vis)); }
     timer = setInterval(nacti, cfg.poll_s * 1000);

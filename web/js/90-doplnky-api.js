@@ -21,6 +21,9 @@
       pluginFrames.push(entry); pluginFrames.sort((a, b) => b.priority - a.priority);
       return () => { const i = pluginFrames.indexOf(entry); if (i >= 0) pluginFrames.splice(i, 1); };
     },
+    // minimapa: fn(ctx, toMini(ix, iy)) se volá při každém překreslení minimapy (ix, iy = souřadnice obrazu, jako vrací toImg); vrací funkci pro odhlášení
+    onMinimap(fn) { if (typeof fn !== 'function') return () => {}; miniHooks.push(fn); miniVer++; return () => { const i = miniHooks.indexOf(fn); if (i >= 0) { miniHooks.splice(i, 1); miniVer++; } }; },
+    refreshMinimap() { miniVer++; },
     setClickCapture(en) { pluginCapture = Boolean(en); },
     setCursor(cur) { pluginCursor = cur || ''; $('osd').style.cursor = pluginCursor; },
     setPinsVisible(vis) { document.body.classList.toggle('plugins-hide-pins', !vis); },

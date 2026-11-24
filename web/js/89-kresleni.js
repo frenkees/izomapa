@@ -369,7 +369,7 @@
     }
     runFrameLayer('top', frameView, t);
     if (mini.offsetParent) {                               // na mobilu je minimapa skrytá; jinak kreslit jen při změně
-      const b = viewer.viewport.getBounds(true), mk = [b.x.toFixed(4), b.y.toFixed(4), b.width.toFixed(4), state.season, state.night > 0.35 ? state.night.toFixed(2) : 0, state.wip, Object.keys(miniImgs).length, cw].join('|');
+      const b = viewer.viewport.getBounds(true), mk = [b.x.toFixed(4), b.y.toFixed(4), b.width.toFixed(4), state.season, state.night > 0.35 ? state.night.toFixed(2) : 0, state.wip, Object.keys(miniImgs).length, miniVer, cw].join('|');
       if (mk !== miniKey) { miniKey = mk; drawMini(); }
       const m = cam.mpp / sx, st = m < 1 ? `1\u00a0px = ${Math.round(m * 100)}\u00a0cm` : `1\u00a0px = ${Math.round(m)}\u00a0m`;
       if (st !== scaleTxt) { scaleTxt = st; $('scale').textContent = st; }

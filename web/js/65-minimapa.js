@@ -1,6 +1,7 @@
   // ---------- minimapa ----------
   const mini = $('mini'), mctx = mini.getContext('2d');
-  let miniImgs = {}, HB = null;
+  let miniImgs = {}, HB = null, miniVer = 0;
+  const miniHooks = [];                                    // doplňky kreslící do minimapy: fn(ctx, toMini(ix, iy) -> [x, y] v pixelech minimapy)
   function loadMini() {
     for (const l of LAYERS) {
       const d = l.src(state.season); if (!d) continue;
@@ -19,6 +20,8 @@
     for (const l of LAYERS) if (shown(l.key) && miniImgs[l.key]) mctx.drawImage(miniImgs[l.key], (l.x - HB.x) * s, (l.y - HB.y) * s, l.w * s, l.w * (l.hrel || 0.56) * s);
     if (state.night > 0.35) { mctx.fillStyle = `rgba(10,14,40,${(smooth(0.35, 0.95, state.night) * 0.6).toFixed(2)})`; mctx.fillRect(0, 0, mini.width, mini.height); }
     const b = viewer.viewport.getBounds(true);
+    const toMini = (ix, iy) => [(ix / W - HB.x) * s, (iy / W - HB.y) * s];
+    for (const f of miniHooks) { try { f(mctx, toMini); } catch {} }
     mctx.strokeStyle = '#f2c66d'; mctx.lineWidth = 2;
     mctx.strokeRect(Math.round((b.x - HB.x) * s) + 1, Math.round((b.y - HB.y) * s) + 1, Math.max(4, Math.round(b.width * s)), Math.max(4, Math.round(b.height * s)));
   }
