@@ -30,7 +30,13 @@
   const isLzs = (a) => !!LZS && ((LZS.registrace || []).includes((a.reg || '').toUpperCase()) || (LZS.hex || []).includes((a.id || '').toLowerCase())
     || (lzsRe !== null && lzsRe.test(a.callsign || '') && (!(LZS.typy || []).length || (LZS.typy || []).includes(a.model))));
   const compass = (d) => ['S', 'SV', 'V', 'JV', 'J', 'JZ', 'Z', 'SZ'][Math.round(((d % 360) + 360) % 360 / 45) % 8];
-  const lzsToast = (txt) => { const el = $('toast'); el.textContent = txt; el.hidden = false; clearTimeout(lzsToast.t); lzsToast.t = setTimeout(() => { el.hidden = true; }, 9000); };
+  const lzsToast = (txt, id) => { const el = $('toast'); el.textContent = txt; el.dataset.lzs = id == null ? '' : String(id); el.style.cursor = id == null ? '' : 'pointer'; el.hidden = false; clearTimeout(lzsToast.t); lzsToast.t = setTimeout(() => { el.hidden = true; el.dataset.lzs = ''; el.style.cursor = ''; }, 9000); };
+  $('toast').addEventListener('click', () => {            // klik na oznámení o vrtulníku LZS: pohled se vycentruje na vrtulník a otevře se jeho karta
+    const el = $('toast'), p = el.dataset.lzs ? PLANES.list.get(el.dataset.lzs) : null; if (!p || !el.textContent.startsWith('🚁')) return;
+    const [pix, piy] = toImg(p.x, p.y, gz(p.x, p.y) + planeVisualH(p));
+    viewer.viewport.panTo(new OpenSeadragon.Point(pix / W, piy / W));
+    planeCard(p); el.hidden = true; el.dataset.lzs = '';
+  });
   if ({{LETADLA}} && $('l-planes-row')) {
     $('l-planes-row').hidden = false;
     try { $('l-planes').checked = localStorage.getItem('izo-letadla') === '1'; } catch {}
@@ -291,7 +297,7 @@
           lon: f.lon, lat: f.lat, alt: f.alt, speed: f.speed, track: f.track,
           x: tx, y: ty, trail: [], hist: [[tx, ty, f.alt, now]], lastSeen: now
         });
-        if (f.lzs && !PLANES.lzsSeen.has(f.id)) { PLANES.lzsSeen.add(f.id); lzsToast(`🚁 ${LZS.nazev || 'Vrtulník LZS'} je ve vzduchu. Klikněte na vrtulník pro podrobnosti.`); }
+        if (f.lzs && !PLANES.lzsSeen.has(f.id)) { PLANES.lzsSeen.add(f.id); lzsToast(`🚁 ${LZS.nazev || 'Vrtulník LZS'} je ve vzduchu. Klikněte pro zobrazení na mapě.`, f.id); }
       }
     }
     for (const [id, p] of PLANES.list) {
