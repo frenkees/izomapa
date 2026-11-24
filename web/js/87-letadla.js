@@ -12,6 +12,8 @@
   for (const [cat, list] of Object.entries(AC_TABLE)) for (const it of list.split(',')) { const i = it.indexOf(':'); AC_INFO.set(it.slice(0, i), [cat, it.slice(i + 1)]); }
   const AC_LIGHT = 'C150:Cessna 150,C152:Cessna 152,C172:Cessna 172,C182:Cessna 182,C206:Cessna 206,T206:Cessna T206,C210:Cessna 210,C177:Cessna 177,C162:Cessna 162,PA28:Piper PA-28,P28A:Piper Cherokee,P28R:Piper Arrow,PA18:Piper Super Cub,PA24:Piper Comanche,PA32:Piper Cherokee Six,PA34:Piper Seneca,PA44:Piper Seminole,SR20:Cirrus SR20,SR22:Cirrus SR22,DA20:Diamond DA20,DA40:Diamond DA40,DA42:Diamond DA42,DA62:Diamond DA62,BR23:BRM Bristell,TL20:TL-3000 Sirius,Z42:Zlín Z-42,Z43:Zlín Z-43,Z142:Zlín Z-142,Z242:Zlín Z-242,Z143:Zlín Z-143,AAT3:AAT-3,SIRA:Sirius,TBM:TBM,AT3:Aero AT-3,EV97:Evektor Sportstar,EVSS:Evektor Sportstar,JK05:Jabiru,AC11:Aero Commander,M20P:Mooney M20,BE33:Beechcraft Bonanza,BE35:Beechcraft Bonanza,BE36:Beechcraft Bonanza,BE55:Beechcraft Baron,BE58:Beechcraft Baron,GLID:Kluzák,ULAC:Ultralight,GYRO:Autogyro'.split(',');
   for (const it of AC_LIGHT) { const i = it.indexOf(':'); AC_INFO.set(it.slice(0, i), ['light', it.slice(i + 1)]); }
+  // úplný seznam typů z ICAO Doc 8643 (87-letadla-typy.js, nástroj nastroje/letadla_typy.py): doplní jen kódy, které výše vybrané modely neznají
+  for (const [cat, list] of Object.entries(AC_ICAO)) for (const it of list.split(',')) { const i = it.indexOf(':'), kod = it.slice(0, i); if (!AC_INFO.has(kod)) AC_INFO.set(kod, [cat, it.slice(i + 1)]); }
   // t = ICAO typ, c = kategorie ADS-B (A1 lehké … A5 těžké, A7 vrtulník, B1 kluzák…), alt v m, speed v m/s
   function acClass(t, c, alt, speed) {
     const i = AC_INFO.get(t);
@@ -408,7 +410,8 @@
       const shSpr = PLANESH.get(`${p.cat}|${k}`);
       if (shSpr) {
         ctx.globalAlpha = lowFlyer(p) ? 0.16 : 0.08;
-        const sW = Math.max(12, Math.round(shSpr.c.width * sx)), sH = Math.max(12, Math.round(shSpr.c.height * sx));
+        const mzs = p.lzs ? 1.9 : 1.5;
+        const sW = Math.max(12 * mzs, Math.round(shSpr.c.width * sx * mzs)), sH = Math.max(12 * mzs, Math.round(shSpr.c.height * sx * mzs));
         const scR = sW / shSpr.c.width;
         ctx.drawImage(shSpr.c, Math.round(X_sh + shSpr.x0 * scR), Math.round(Y_sh + shSpr.y0 * scR), sW, sH);
         ctx.globalAlpha = 1.0;
@@ -425,6 +428,26 @@
       }
     }
 
+    // 2c. Svislá tenká linka od letadla k zemi, na zemi průhledný šedý kruh (nad jakým místem a jak vysoko letadlo je)
+    for (const [, p] of PLANES.list) {
+      if (!showPlane(p)) continue;
+      const g0 = gz(p.x, p.y), vH = planeVisualH(p);
+      const top = toImg(p.x, p.y, g0 + vH), bot = toImg(p.x, p.y, g0);
+      const Xt = ox + top[0] * sx, Yt = oy + top[1] * sx, Xb = ox + bot[0] * sx, Yb = oy + bot[1] * sx;
+      if (!visScreen(Xb, Yb, 200) && !visScreen(Xt, Yt, 200)) continue;
+      const R_ = 14, ux = toImg(p.x + R_, p.y, g0), uy = toImg(p.x, p.y + R_, g0);
+      ctx.save();
+      ctx.translate(Xb, Yb);
+      ctx.transform((ux[0] - bot[0]) * sx, (ux[1] - bot[1]) * sx, (uy[0] - bot[0]) * sx, (uy[1] - bot[1]) * sx, 0, 0);
+      ctx.fillStyle = 'rgba(128,132,140,0.28)'; ctx.strokeStyle = 'rgba(110,114,122,0.55)'; ctx.lineWidth = 1 / Math.max(1, R_ * sx * 0.6);
+      ctx.beginPath(); ctx.arc(0, 0, 1, 0, 6.2832); ctx.fill(); ctx.stroke();
+      ctx.restore();
+      ctx.save();
+      ctx.strokeStyle = 'rgba(120,124,132,0.6)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(Math.round(Xt) + 0.5, Yt); ctx.lineTo(Math.round(Xb) + 0.5, Yb); ctx.stroke();
+      ctx.restore();
+    }
+
     // 3. Těla letadel
     for (const [id, p] of PLANES.list) {
       if (!showPlane(p)) continue;
@@ -438,7 +461,7 @@
       const k = ((Math.round(Math.atan2(Math.cos(rad), Math.sin(rad)) / (Math.PI * 2) * NDIR) % NDIR) + NDIR) % NDIR;
       const spr = planeSprite(p.cat, k);
 
-      const mz = p.lzs ? 1.9 : 1;                           // vrtulník LZS je větší, aby byl vidět i z dálky
+      const mz = p.lzs ? 1.9 : 1.5;                           // vrtulník LZS je větší, aby byl vidět i z dálky
       const sW = Math.max(16 * mz, Math.round(spr.c.width * sx * mz)), sH = Math.max(16 * mz, Math.round(spr.c.height * sx * mz));
       const scR = sW / spr.c.width;
       const imgX = Math.round(X_pl + spr.x0 * scR), imgY = Math.round(Y_pl + spr.y0 * scR);
@@ -446,7 +469,7 @@
 
       PLANES.drawn.push([X_pl, Y_pl, p]);
       if (isHeli(p.cat)) {                                  // rotory: nosný (rozmazaný disk s lopatkami) a vyrovnávací
-        const R_ = 5.2 * 1, u0 = toImg(p.x, p.y, gz0 + vH + 2.1 + 0.3), ux = toImg(p.x + R_, p.y, gz0 + vH + 2.4), uy = toImg(p.x, p.y + R_, gz0 + vH + 2.4);
+        const R_ = 5.2 * mz, u0 = toImg(p.x, p.y, gz0 + vH + 2.4 * mz), ux = toImg(p.x + R_, p.y, gz0 + vH + 2.4 * mz), uy = toImg(p.x, p.y + R_, gz0 + vH + 2.4 * mz);
         const cX = ox + u0[0] * sx, cY = oy + u0[1] * sx;
         ctx.save(); ctx.translate(cX, cY); ctx.transform((ux[0] - u0[0]) * sx / 1, (ux[1] - u0[1]) * sx / 1, (uy[0] - u0[0]) * sx / 1, (uy[1] - u0[1]) * sx / 1, 0, 0);
         ctx.fillStyle = 'rgba(30,36,48,0.16)'; ctx.beginPath(); ctx.arc(0, 0, 1, 0, 6.2832); ctx.fill();
@@ -462,25 +485,34 @@
         ctx.restore();
       }
 
-      // Noční poziční světla
-      if (night > 0.25) {
+      // Poziční a výstražná světla (ve dne i v noci): červené vlevo, zelené vpravo, bílé vzadu; viditelnost podle směru pohledu kamery
+      {
         const a = k / NDIR * Math.PI * 2, fx_ = Math.cos(a), fy_ = Math.sin(a), sxv = -fy_, syv = fx_;
-        const SCn = p.cat === 'jetL' ? 1.32 : p.cat === 'jetS' ? 0.7 : p.cat === 'turbo' ? 1.45 : 1, jt = isJet(p.cat);
-        const tipW = (jt ? 13.0 : 5.6) * SCn, tipS = (jt ? -4.5 : 0.2) * SCn, tipZ = (jt ? 0.2 : 1.08) * SCn;
-        const P_light = (s, t, h) => {
-          const pt = toImg(p.x + fx_ * s + sxv * t, p.y + fy_ * s + syv * t, gz0 + vH + h);
+        const SCn = (p.cat === 'jetL' ? 1.32 : p.cat === 'jetS' ? 0.7 : p.cat === 'turbo' ? 1.45 : 1) * mz, jt = isJet(p.cat), hl = isHeli(p.cat);
+        const tipW = (jt ? 13.0 : hl ? 1.0 : 5.6) * SCn, tipS = (jt ? -4.5 : hl ? -0.4 : 0.2) * SCn, tipZ = (jt ? 0.2 : hl ? 1.5 : 1.08) * SCn;
+        const P_light = (s_, t_, h_) => {
+          const pt = toImg(p.x + fx_ * s_ + sxv * t_, p.y + fy_ * s_ + syv * t_, gz0 + vH + h_);
           return [Math.round(ox + pt[0] * sx), Math.round(oy + pt[1] * sx)];
         };
-        NL_planes.push({ p: P_light(tipS, -tipW, tipZ), col: '#ff2828', size: Math.max(2, Math.round(3 * sx)) });
-        NL_planes.push({ p: P_light(tipS, tipW, tipZ), col: '#22ff44', size: Math.max(2, Math.round(3 * sx)) });
-        const strobeOn = (Math.floor(now / 400) % 3 === 0);
-        if (strobeOn) {
-          const finS = (jt ? -13.8 : -4.2) * SCn, finZ = (jt ? 4.8 : 2.1) * SCn;
-          NL_planes.push({ p: P_light(finS, 0, finZ), col: '#ffffff', size: Math.max(3, Math.round(4 * sx)), glow: true });
+        // úhel kamery vůči nosu letadla (φ > 0 = kamera vlevo od směru letu); kamera je na jihozápadě, tj. pohled míří na severovýchod
+        const hx = Math.sin(rad), hy = Math.cos(rad), vx = -Math.SQRT1_2, vy = -Math.SQRT1_2;
+        const phi = Math.atan2(hx * vy - hy * vx, hx * vx + hy * vy) * 180 / Math.PI;
+        const redOn = phi > -12 && phi < 110, greenOn = phi < 12 && phi > -110, tailOn = Math.abs(phi) > 110;
+        const dayK = 0.6 + 0.4 * Math.min(1, night * 1.5);
+        const sz = Math.max(3, Math.round(4 * sx * mz));
+        if (redOn) NL_planes.push({ p: P_light(tipS, -tipW, tipZ), col: '#ff2a2a', glowC: '255,40,40', size: sz, a: dayK, glow: true });
+        if (greenOn) NL_planes.push({ p: P_light(tipS, tipW, tipZ), col: '#22ff55', glowC: '40,255,90', size: sz, a: dayK, glow: true });
+        if (tailOn) NL_planes.push({ p: P_light(tipS - 3 * SCn, 0, tipZ * 0.9), col: '#fffbe8', glowC: '255,250,220', size: sz, a: dayK, glow: true });
+        let hs = 0; for (let i_ = 0; i_ < String(id).length; i_++) hs = (hs * 31 + String(id).charCodeAt(i_)) | 0;
+        const ph = (now + Math.abs(hs) % 1200) % 1200;            // bílý strobo: dvojitý záblesk co 1,2 s
+        if (ph < 90 || (ph > 190 && ph < 280)) {
+          const finS = (jt ? -13.8 : hl ? -6.4 : -4.2) * SCn, finZ = (jt ? 4.8 : hl ? 3.1 : 2.1) * SCn;
+          NL_planes.push({ p: P_light(finS, 0, finZ), col: '#ffffff', glowC: '255,255,255', size: Math.round(sz * 1.6), a: 1, glow: true, big: true });
+          NL_planes.push({ p: P_light(tipS, -tipW, tipZ), col: '#ffffff', glowC: '255,255,255', size: sz, a: 1, glow: true, big: true });
+          NL_planes.push({ p: P_light(tipS, tipW, tipZ), col: '#ffffff', glowC: '255,255,255', size: sz, a: 1, glow: true, big: true });
         }
-        const beaconOn = (Math.floor(now / 500) % 2 === 0);
-        if (beaconOn) {
-          NL_planes.push({ p: P_light(0, 0, -1.1), col: '#ff2222', size: Math.max(2, Math.round(3.5 * sx)), glow: true });
+        if ((now + Math.abs(hs) % 1000) % 1000 < 450) {          // červený maják (beacon) na trupu
+          NL_planes.push({ p: P_light(0, 0, (hl ? 2.6 * mz : 0.7 * SCn)), col: '#ff2222', glowC: '255,40,40', size: Math.round(sz * 1.3), a: 1, glow: true, big: true });
         }
       }
 
@@ -510,12 +542,17 @@
     }
 
     if (NL_planes.length) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const l of NL_planes) {
+        const [lx, ly] = l.p, R = l.size * (l.big ? 4.5 : 3);
+        const gr = ctx.createRadialGradient(lx, ly, 0, lx, ly, R);
+        gr.addColorStop(0, `rgba(${l.glowC},${0.85 * l.a})`); gr.addColorStop(0.35, `rgba(${l.glowC},${0.35 * l.a})`); gr.addColorStop(1, `rgba(${l.glowC},0)`);
+        ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(lx, ly, R, 0, 6.2832); ctx.fill();
+      }
+      ctx.restore();
       for (const l of NL_planes) {
         const [lx, ly] = l.p;
-        if (l.glow) {
-          ctx.fillStyle = l.col === '#ffffff' ? 'rgba(255, 255, 255, 0.4)' : 'rgba(255, 40, 40, 0.4)';
-          ctx.fillRect(lx - l.size * 1.5, ly - l.size * 1.5, l.size * 3, l.size * 3);
-        }
         ctx.fillStyle = l.col;
         ctx.fillRect(lx - l.size / 2, ly - l.size / 2, l.size, l.size);
       }
