@@ -84,7 +84,7 @@
       S.live = d.v; S.free = r.free; S.ok = true; S.t = now;
       for (const [i, m] of r.match) { S.match.set(i, { ...m, last: now }); S.byId.set(m.id, i); }
       for (const [i, m] of [...S.match]) if (!r.match.has(i) && now - m.last > 600e3) { S.match.delete(i); if (S.byId.get(m.id) === i) S.byId.delete(m.id); }
-      if (box) box.title = `Živě ${d.v.length} vozidel, ${r.match.size} spojeno s jízdním řádem (zdroj ${d.z === 'fcen' ? 'mapa.fcen.cz' : 'DPmHK'})`;
+      if (box) box.title = `Všechny spoje MHD: špendlíky s číslem linky na odzoomované mapě (zelený včas, žlutý 1 min, oranžový 2 min, červený 3 min a víc, šedý bez živých dat). Živě ${d.v.length} vozidel, ${r.match.size} spojeno s jízdním řádem (zdroj ${d.z === 'fcen' ? 'mapa.fcen.cz' : 'DPmHK'})`;
     }
     async function nacti() {
       if (doc.hidden || !api.getMhd()) return;
@@ -140,8 +140,8 @@
     function ui() {                                        // přepínač ve Vrstvách (za Dopravou)
       const slot = api.getUiSlot('vrstvy'); if (!slot) return;
       box = doc.createElement('label');
-      box.title = 'Barevné špendlíky s číslem linky na odzoomované mapě';
-      box.innerHTML = '<input type="checkbox" id="l-mhdpins"> Všechny spoje MHD<span class="mhdlive-leg" aria-hidden="true"><i class="g"></i><i class="y"></i><i class="o"></i><i class="r"></i><i class="n"></i></span>';
+      box.title = 'Všechny spoje MHD: na odzoomované mapě špendlíky s číslem linky (zelený včas, žlutý 1 min, oranžový 2 min, červený 3 min a víc zpoždění, šedý bez živých dat)';
+      box.innerHTML = '<input type="checkbox" id="l-mhdpins"><span>Spoje MHD</span>';
       const sv = (() => { try { return localStorage.getItem('izo-mhdpins') === '1'; } catch { return false; } })();
       box.querySelector('input').checked = sv;
       box.querySelector('input').addEventListener('change', (e) => { try { localStorage.setItem('izo-mhdpins', e.target.checked ? '1' : '0'); } catch {} });

@@ -1,0 +1,61 @@
+/* Menu (panel vlevo): velikosti jsou parametry (--fs, --gap, --chip-h, --ico, --chip-min) a mění se podle šířky a výšky okna,
+   takže se nic nezalamuje a panel se vejde bez posuvníku. Vrstvy jsou dlaždicové přepínače s pixelovou ikonkou (44-menu-ikony.css),
+   dlouhé popisky se zkrátí třemi tečkami (celý název je v title). Přepínač z doplňku se přidá do .layers a vypadá stejně. */
+.panel {
+  --fs: .9rem; --gap: 12px; --padx: 16px; --chip-h: 34px; --chip-min: 104px; --chip-gap: 6px; --ico: 18px;
+  width: min(var(--pw-max, 340px), calc(100vw - 32px)); padding: 14px var(--padx); gap: var(--gap);
+  grid-template-columns: minmax(0, 1fr); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+  font-size: var(--fs); container: panel / inline-size;
+  scrollbar-width: thin; scrollbar-color: var(--edge) transparent;
+}
+.panel::-webkit-scrollbar { width: 8px; } .panel::-webkit-scrollbar-thumb { background: var(--edge); border: 2px solid var(--panel); }
+.panel .px-btn { font-size: calc(var(--fs) + .02rem); min-height: calc(var(--chip-h) + 2px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-inline: 4px; }
+.label { font-size: calc(var(--fs) - .1rem); margin-bottom: 4px; }
+.sub { font-size: calc(var(--fs) - .08rem); }
+.daynight .ends { font-size: calc(var(--fs) - .1rem); gap: 6px; }
+.daynight .ends span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chips2 > .px-btn, .chips4 > .px-btn { min-width: 0; }
+.realtime { font-size: calc(var(--fs) - .06rem); min-width: 0; }
+
+.layers { grid-template-columns: repeat(auto-fill, minmax(var(--chip-min), 1fr)); gap: var(--chip-gap); }
+.layers label {
+  position: relative; display: flex; align-items: center; gap: 5px; min-width: 0; min-height: var(--chip-h); padding: 0 6px; box-sizing: border-box;
+  background: var(--panel-2); border: 2px solid var(--edge); box-shadow: 2px 2px 0 rgba(0, 0, 0, .35);
+  font-size: calc(var(--fs) - .07rem); line-height: 1.1; color: var(--muted); cursor: pointer; user-select: none; -webkit-user-select: none;
+}
+.layers label[hidden] { display: none; }
+.layers label > input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.layers label::before {
+  content: ''; flex: none; width: var(--ico); height: var(--ico); background: currentColor;
+  -webkit-mask: var(--i) center / contain no-repeat; mask: var(--i) center / contain no-repeat;
+}
+.layers label > span:first-of-type { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.layers label:hover { border-color: #52618a; color: var(--ink); }
+.layers label:has(input:checked) { color: var(--ink); border-color: #5d8a3f; background: #26352f; box-shadow: 2px 2px 0 rgba(0, 0, 0, .35), inset 0 -3px 0 var(--grass); }
+.layers label:has(input:checked)::before { color: var(--grass); }
+.layers label:has(input:focus-visible) { outline: 2px solid var(--grass); outline-offset: 2px; }
+.layers label:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 rgba(0, 0, 0, .35); }
+.layers label:has(select) { grid-column: 1 / -1; order: 99; flex-wrap: wrap; padding-block: 4px; }
+.layers label select {
+  flex: 1 1 96px; min-width: 0; max-width: none; margin: 0; font: inherit; font-size: .9em; color: var(--ink); background: var(--night);
+  border: 2px solid var(--edge); padding: 3px 4px; height: calc(var(--chip-h) - 8px);
+}
+.layers .mhdlive-leg { display: none; }                       /* legenda barev špendlíků je v title přepínače */
+.community-row { gap: 6px; }
+a.community { min-width: 0; }
+
+/* široké obrazovky: větší panel i písmo, 3 sloupce přepínačů */
+@media (min-width: 1500px) { .panel { --pw-max: 380px; --fs: .96rem; --chip-h: 36px; --ico: 18px; } }
+@media (min-width: 2200px) { .panel { --pw-max: 440px; --fs: 1.1rem; --chip-h: 42px; --ico: 27px; --padx: 20px; --gap: 14px; } }
+/* nízké okno: těsnější mezery, ať se panel vejde bez posuvníku */
+@media (max-height: 960px) { .panel { --gap: 9px; --chip-h: 32px; padding-block: 11px; } .sub { display: none; } .soc { width: 38px; height: 38px; } .soc svg { width: 22px; height: 22px; } h1 { font-size: 1.5rem; } }
+@media (max-height: 760px) { .panel { --gap: 7px; --chip-h: 30px; --chip-gap: 5px; } .realtime { margin-top: 3px; } h1 { font-size: 1.3rem; } }
+/* mobil: prsty (44 px), dvě dlaždice vedle sebe, panel přes celou šířku */
+@media (max-width: 640px) {
+  .panel { --pw-max: 100vw; --fs: .92rem; --chip-h: 44px; --chip-min: 128px; --gap: 10px; --padx: 12px; }
+  .panel .px-btn { font-size: calc(var(--fs) + .02rem); }
+  .layers label { min-height: var(--chip-h); }
+  .sub { display: none; }
+}
+@media (max-width: 380px) { .panel { --fs: .84rem; --chip-min: 112px; --ico: 18px; --chip-gap: 5px; } .layers label { gap: 5px; padding: 0 6px; } }
+@media (max-width: 640px) and (max-height: 600px) { .panel { --chip-h: 38px; --gap: 7px; } }

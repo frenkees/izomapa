@@ -86,7 +86,7 @@
     function ui() {                                        // přepínač Zácpy ve Vrstvách (za Dopravou)
       const slot = api.getUiSlot('vrstvy'); if (!slot) return;
       jamBox = doc.createElement('label'); jamBox.title = 'Barva ulic podle zácp (HERE a TomTom Traffic): živě, nebo typicky v dané hodině';
-      jamBox.innerHTML = '<input type="checkbox" id="l-jam"> Zácpy <select id="jam-mode" aria-label="Zobrazit zácpy" style="font:inherit;font-size:.82em;margin-left:4px;max-width:150px"></select>';
+      jamBox.innerHTML = '<input type="checkbox" id="l-jam"><span>Zácpy</span><select id="jam-mode" aria-label="Zobrazit zácpy"></select>';
       selEl = jamBox.querySelector('select');
       for (const m of cfg.rezimy) { const o = doc.createElement('option'); o.value = m.v; o.textContent = m.t; selEl.appendChild(o); }
       selEl.onchange = (e) => { S.mode = e.target.value; };
