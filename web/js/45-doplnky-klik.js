@@ -22,7 +22,7 @@
       if (pl) { planeCard(pl[2]); return; }
     }
     const v = MHD.drawn.find((q) => Math.hypot(q[0] - e.position.x, q[1] - e.position.y) < 18);
-    if (v) { mhdFollow(v[2]); return; }
+    if (v) { if (mhdTripCard(v[2]) !== true) mhdFollow(v[2]); return; }   // stejná karta jako u špendlíku: malý jízdní řád a zpoždění, trasa spoje se nakreslí
     const [ix, iy] = vpToImg(e.position);
     const st = stopAt(ix, iy);
     if (st) { showStop(st); return; }
