@@ -639,6 +639,8 @@
     const old = card.dataset.trip === String(i) && $('cardExtra').firstChild ? $('cardExtra').firstChild.scrollTop : null;
     const o = mhdPos(t, el);
     showCard({ title: `${MHD_DRUH(typ)} ${line} → ${MHD.names[t[5]]}`, text: `${dly}. ${nx}.`, rows: [], dep: true, lon: o.x / cam.kx + cam.lon0, lat: o.y / cam.ky + cam.lat0 });
+    const nt = MHD.cardNote && MHD.cardNote(i);
+    if (nt) { const e = document.createElement('div'); e.className = 'trip-note'; e.style.cssText = 'color:#ff5a4f;font-weight:700;margin-top:3px'; e.textContent = nt; $('cardText').append(e); }   // např. „Stojím v zácpě“ z doplňku
     card.dataset.trip = String(i); MHD.cardTrip = i;
     const tb = document.createElement('div'); tb.className = 'trip-tt'; let nxEl = null;
     for (let k = 0; k < z.length; k += 2) {

@@ -55,6 +55,7 @@
   }
 
   // ---------- doháněcí model polohy ----------
+  const JAM_S = 90, JAM_JUNC_M = 35, JAM_STOP_M = 45, JAM_SIG_M = 60, JAM_MOVE_M = 12, JAM_KMH = 3;   // zácpa: stojí aspoň 90 s (≤ 3 km/h, nehnul se o víc než 12 m) a není u zastávky, křižovatky, semaforu ani přejezdu
   const TAU = 8, ACC = 1.5, BRK = 2.5, VMAX = 22, AGE_EXTRA = 30, VALID_MS = 90e3;
   function schedS(trip, el, M) {                           // metr na trase podle jízdního řádu v čase el
     const q = trip[4]; let i = 2; while (i < q.length - 2 && q[i] < el) i += 2;
@@ -117,10 +118,39 @@
 
   function create(api, doc = document, fetchFn = (...a) => fetch(...a)) {
     const cfg = { api: 'api/mhd_live', poll_s: 15, ...(api.getPluginData(ID) || {}) };
-    const S = { ch: new Map(), live: [], match: new Map(), free: [], cur: new Map(), byId: new Map(), hit: [], ok: false, t: 0, timers: [] };
+    const S = { jam: new Map(), ch: new Map(), live: [], match: new Map(), free: [], cur: new Map(), byId: new Map(), hit: [], ok: false, t: 0, timers: [] };
     let box = null, off = [];
     const on = () => !!(box && box.querySelector('input').checked);
 
+    function blizko(pts, x, y, r) { for (const q of pts) if (Math.abs(q[0] - x) < r && Math.abs(q[1] - y) < r && Math.hypot(q[0] - x, q[1] - y) < r) return true; return false; }
+    function krizovatky(now) {                              // body, kde se v datech silnic stýkají aspoň 3 konce kusů (křižovatky, kruháče); obnovuje se po 2 min
+      if (S.junc && now - S.junc.t < 120e3) return S.junc.pts;
+      const cnt = new Map(), pts = [];
+      for (const r of (api.getRoads ? api.getRoads() : [])) { const w = r.w; if (!w || w.length < 2) continue; for (const q of [w[0], w[w.length - 1]]) { const k = Math.round(q[0] / 6) + ',' + Math.round(q[1] / 6), c = cnt.get(k) || { n: 0, x: q[0], y: q[1] }; c.n++; cnt.set(k, c); } }
+      for (const c of cnt.values()) if (c.n >= 3) pts.push([c.x, c.y]);
+      S.junc = { t: now, pts }; return pts;
+    }
+    function jamUpdate(i, v, x, y, now, M) {                // sleduje, jak dlouho vůz stojí na jednom místě
+      let j = S.jam.get(i);
+      if ((v.sp || 0) > JAM_KMH || !j || Math.hypot(j.x - x, j.y - y) > JAM_MOVE_M) { S.jam.set(i, { x, y, since: now - (v.ag || 0) * 1000, stuck: false }); return; }
+      if (j.stuck || now - j.since < JAM_S * 1000) return;
+      const stops = (M.stops || []).map((s) => [s[1], s[2]]), sig = api.getSignals ? api.getSignals().map((s) => [s[0], s[1]]) : [], xs = api.getXings ? api.getXings().map((c) => [c.x, c.y]) : [];
+      j.stuck = !blizko(stops, x, y, JAM_STOP_M) && !blizko(sig, x, y, JAM_SIG_M) && !blizko(xs, x, y, JAM_SIG_M) && !blizko(krizovatky(now), x, y, JAM_JUNC_M);
+    }
+    const zacpa = (i, now = Date.now()) => { const j = S.jam.get(i), m = S.match.get(i); return j && j.stuck && m && now - m.last < 90e3 ? Math.max(1, Math.round((now - j.since) / 60e3)) : 0; };
+    function cardNote(i, now) { const min = zacpa(i, now); return min ? `Stojím v zácpě :( už ${min} min` : null; }
+    function jamLabels(ctx, view) {                         // při velkém přiblížení červený popisek za číslem linky nad stojícím vozem
+      const M = api.getMhd(); if (!M || view.sx < 0.3) return;
+      ctx.save(); ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.lineJoin = 'round'; ctx.lineWidth = 4;
+      for (const [i, el, ceka] of api.getMhdActive()) {
+        if (ceka || !zacpa(i)) continue;
+        const trip = M.trips[i], o = api.mhdPos(trip, elHook(i, el, view.now / 1000 - Math.floor(view.now / 1000))), [X, Y] = view.toScreen(o.ix, o.iy);
+        if (X < -80 || Y < -60 || X > view.cw + 80 || Y > view.ch + 40) continue;
+        const t = `${M.routes[trip[0]][0]} · zácpa :(`;
+        ctx.strokeStyle = '#14161d'; ctx.strokeText(t, X, Y - 30); ctx.fillStyle = '#ff4d42'; ctx.fillText(t, X, Y - 30);
+      }
+      ctx.restore();
+    }
     const platny = (b, now) => !!b && now - b.tt < VALID_MS;
     const elNow = (m, now) => m.el0 + (now - m.last) / 1000;     // čas od odjezdu podle jízdního řádu (bez zpoždění) právě teď
     function hook(i) {                                   // zpoždění pro mhdActive (1× za s): odvozené z doháněcího modelu, aby sedělo s polohou
@@ -153,11 +183,12 @@
         let p = projekce(sh, x, y, b0 ? b0.sd : sj, 700, hx, hy);
         if (!p || p.off > 80) p = projekce(sh, x, y, sj, 700, hx, hy);
         if (!p || p.off > 80) continue;                                   // GPS mimo trasu: model dojíždí dál podle posledních dat
+        jamUpdate(i, v, x, y, now, M);
         const tgt = p.s + vg * (v.ag || 0);
         if (!b0 || !platny(b0, now) || Math.abs(tgt - b0.sd) > 600) S.ch.set(i, { sd: tgt, v: vg, tgt, tt: now, vg, tm: now });
         else { b0.tgt = tgt; b0.tt = now; b0.vg = vg; }
       }
-      for (const [i, m] of [...S.match]) if (!r.match.has(i) && now - m.last > 600e3) { S.match.delete(i); S.ch.delete(i); if (S.byId.get(m.id) === i) S.byId.delete(m.id); }
+      for (const [i, m] of [...S.match]) if (!r.match.has(i) && now - m.last > 600e3) { S.match.delete(i); S.ch.delete(i); S.jam.delete(i); if (S.byId.get(m.id) === i) S.byId.delete(m.id); }
       if (box) box.title = `Všechny spoje MHD: špendlíky s číslem linky na odzoomované mapě (zelený včas, žlutý 1 min, oranžový 2 min, červený 3 min a víc, šedý bez živých dat). Živě ${d.v.length} vozidel, ${r.match.size} spojeno s jízdním řádem (zdroj ${d.z === 'fcen' ? 'mapa.fcen.cz' : 'DPmHK'})`;
     }
     async function nacti() {
@@ -165,7 +196,7 @@
       try {
         const r = await fetchFn(cfg.api); if (!r.ok) throw new Error(r.status);
         zpracuj(await r.json());
-      } catch (e) { if (Date.now() - S.t > 300e3) { S.ok = false; S.match.clear(); S.ch.clear(); S.byId.clear(); } }    // bez dat 5 min: zpět na jízdní řád
+      } catch (e) { if (Date.now() - S.t > 300e3) { S.ok = false; S.match.clear(); S.ch.clear(); S.byId.clear(); S.jam.clear(); } }    // bez dat 5 min: zpět na jízdní řád
     }
     function plyn(dt) {                                    // záloha bez GPS průmětu: použité zpoždění se blíží hlášenému nejvýš 3 s za sekundu
       const h = Math.min(dt || 0.016, 0.1), up = 0.9 * h, dn = 3 * h, now = Date.now();   // zpoždění roste pomaleji než čas: vůz zpomalí, ale necouvne
@@ -218,8 +249,8 @@
     }
     function start() {
       ui();
-      api.setMhdDelayHook(hook); if (api.setMhdElHook) api.setMhdElHook(elHook);
-      off.push(api.onFrame((ctx, view) => { plyn(view.dt); if (on()) pins(ctx, view); else S.hit.length = 0; }, { layer: 'top' }));
+      api.setMhdDelayHook(hook); if (api.setMhdElHook) api.setMhdElHook(elHook); if (api.setMhdCardNote) api.setMhdCardNote(cardNote);
+      off.push(api.onFrame((ctx, view) => { plyn(view.dt); jamLabels(ctx, view); if (on()) pins(ctx, view); else S.hit.length = 0; }, { layer: 'top' }));
       off.push(api.onMapClick((e) => {                     // klik na špendlík otevře kartu spoje (malý jízdní řád, další zastávka se zpožděním)
         let best = null, bd = 17;
         for (const [x, y, i] of S.hit) { const d = Math.hypot(x - e.screenX, y - e.screenY); if (d < bd) { bd = d; best = i; } }
@@ -230,10 +261,10 @@
       S.timers.push(t0, setInterval(nacti, cfg.poll_s * 1000));
     }
     function stop() {
-      api.setMhdDelayHook(null); if (api.setMhdElHook) api.setMhdElHook(null); off.forEach((f) => f()); off = []; S.timers.forEach(clearInterval); S.timers = [];
+      api.setMhdDelayHook(null); if (api.setMhdElHook) api.setMhdElHook(null); if (api.setMhdCardNote) api.setMhdCardNote(null); off.forEach((f) => f()); off = []; S.timers.forEach(clearInterval); S.timers = [];
       if (box) box.remove(); box = null;
     }
-    return { start, stop, hook, elHook, state: S, cfg, zpracuj, plyn, nacti, pins };
+    return { start, stop, hook, elHook, zacpa, cardNote, jamUpdate, state: S, cfg, zpracuj, plyn, nacti, pins };
   }
 
   if (typeof window !== 'undefined' && window.Izomapa) {

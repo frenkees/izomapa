@@ -44,3 +44,22 @@ const c = { sd: 0, v: 0, tgt: 400, tt: 0, vg: 10, tm: 0 };       // pozadu: zryc
 for (let t = 100; t <= 40000; t += 100) postup(c, t);
 assert.ok(c.sd > 400);
 console.log('mhd_live dohánění: OK');
+
+// zácpa: stojí ≥ 60 s mimo zastávku/semafor/přejezd; u zastávky ani při jízdě ne
+{
+  const Ms = { stops: [['Zastávka', 500, 0, 0]], routes: [['15', 3]], trips: [[0]] };
+  const apiS = { getPluginData: () => ({}), getMhd: () => Ms, getSignals: () => [[900, 0, 1]], getXings: () => [{ x: 1300, y: 0 }], getRoads: () => [{ w: [[1600, 0], [1700, 0]] }, { w: [[1600, 0], [1600, 90]] }, { w: [[1500, 0], [1600, 0]] }], latLonToWorld: (a, b) => [b, a] };
+  const inst = win.IzomapaMhdLive.create(apiS, {});
+  const S = inst.state, t0 = 1e6;
+  const stojim = (x, sp, t, ag = 0) => inst.jamUpdate(0, { sp, ag }, x, 0, t, Ms);
+  S.match.set(0, { last: t0 + 100e3 }); S.junc = null;
+  for (const [x, nazev, ocekavano] of [[100, 'zácpa', true], [510, 'u zastávky', false], [880, 'u semaforu', false], [1290, 'u přejezdu', false], [1610, 'u křižovatky', false]]) {
+    S.jam.clear(); stojim(x, 0, t0); stojim(x, 0, t0 + 60e3); assert.ok(!inst.zacpa(0, t0 + 61e3), nazev + ': po 60 s ještě ne');
+    stojim(x, 0, t0 + 100e3); assert.equal(!!inst.zacpa(0, t0 + 101e3), ocekavano, nazev);
+  }
+  S.jam.clear(); stojim(100, 0, t0); stojim(100, 0, t0 + 100e3); assert.ok(inst.zacpa(0, t0 + 101e3));
+  stojim(100, 20, t0 + 110e3); assert.ok(!inst.zacpa(0, t0 + 111e3), 'rozjel se: zácpa končí');
+  assert.equal(inst.cardNote(0, t0 + 111e3), null);   // po rozjetí bez poznámky
+  S.jam.clear(); stojim(100, 0, t0); stojim(100, 0, t0 + 100e3); assert.match(inst.cardNote(0, t0 + 101e3), /zácpě :\(/);
+  console.log('mhd_live zácpa: OK');
+}
