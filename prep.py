@@ -1249,6 +1249,24 @@ def deck_runs(pts):
     return out
 
 
+def no_pier(D):
+    """místa pod mostovkou, kde vede cesta (nadjezd nad silnicí): [x, y, r] středu křížení a poloměr; render.html tam nestaví pilíř,
+    jinak by sloup stál ve vozovce pod mostem. Cesty po mostě samotném a jeho nájezdy se přeskočí stejně jako při zářezu pod mostem."""
+    lz = D[0]; fp = lz.buffer(D[4] / 2 + 1.0); out = []
+    if D[5] == 'rail': return out
+    for j in _under.query(fp):
+        cg = _under.geometries[j]
+        if cg.distance(lz) > 0.5 or is_node(cg.intersection(lz)): continue
+        wi = lines(cg.intersection(fp))
+        if not wi: continue
+        wi = max(wi, key=lambda q: q.length)
+        if wi.intersection(lz.buffer(1.5)).length > 0.6 * wi.length: continue
+        s0, s1 = sorted((lz.project(Point(wi.coords[0])), lz.project(Point(wi.coords[-1]))))
+        m = lz.interpolate((s0 + s1) / 2)
+        out.append([round(m.x, 1), round(m.y, 1), round((s1 - s0) / 2 + 2.2, 1)])
+    return out
+
+
 def deck_line(D):
     lz, d, z = D[0], D[1], D[2]
     return [[round(x, 1), round(y, 1), round(float(h), 2)] for (x, y), h in zip(np.array(lz.coords)[:, :2], z)]
@@ -2577,7 +2595,7 @@ json.dump({'chunk': CHUNK, 'center': [CX, CY], 'half': HALF, 'step': STEP, 'n': 
            'herds': herds_out, 'koleje': KOLEJE,
            'xmas': xmas, 'rinks': rinks, 'stalls': stalls,
            'play': [[round(float(x), 2), round(float(y), 2), round(float(ground(x, y)), 2), round(a, 3), t] for x, y, a, t in play],
-           'bridges': [{'p': run, 'w': D[4], 'k': D[5], 'c': D[6], 'wtr': D[8] if len(D) > 8 else 0} for D in DECKS if D[0].intersects(EXT)
+           'bridges': [{'p': run, 'w': D[4], 'k': D[5], 'c': D[6], 'wtr': D[8] if len(D) > 8 else 0, 'np': no_pier(D)} for D in DECKS if D[0].intersects(EXT)
                        for run in deck_runs([[*q, round(float(g_), 2)] for q, g_ in zip(deck_line(D), D[3])])]},
           open(f'{OUT}/scene.json', 'w'), separators=(',', ':'))
 

@@ -1216,7 +1216,7 @@ const RAIL_DECKS = [];   // osy kolejí na mostovkách [[x, y, z], ...] (plní m
       run += len;
       while (run >= nextPier) {                                                                                                         // pilíře po ~22 m, jen kde je pod mostem místo
         const t = 1 - (run - nextPier) / len, x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t, z = z0 + (z1 - z0) * t, g = g0 + (g1 - g0) * t;
-        if (z - g > 2.5 && !(foot && br.w < 4 && run < 30)) pushBox(L, frameAt(x, y, g - 0.5, Math.atan2(uy, ux)), -0.7, 0.7, -hw * 0.75, hw * 0.75, 0, z - th - g + 0.5, side.map((v) => v * 0.92), [0, 1, 0, 0]);
+        if (z - g > 2.5 && !(foot && br.w < 4 && run < 30) && !(br.np || []).some(([qx, qy, qr]) => Math.hypot(x - qx, y - qy) < qr)) pushBox(L, frameAt(x, y, g - 0.5, Math.atan2(uy, ux)), -0.7, 0.7, -hw * 0.75, hw * 0.75, 0, z - th - g + 0.5, side.map((v) => v * 0.92), [0, 1, 0, 0]);
         nextPier += foot ? 15 : 22;
       }
     }
