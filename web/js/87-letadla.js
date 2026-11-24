@@ -500,9 +500,9 @@
         const redOn = phi > -12 && phi < 110, greenOn = phi < 12 && phi > -110, tailOn = Math.abs(phi) > 110;
         const dayK = 0.6 + 0.4 * Math.min(1, night * 1.5);
         const sz = Math.max(3, Math.round(4 * sx * mz));
-        if (redOn) NL_planes.push({ p: P_light(tipS, -tipW, tipZ), col: '#ff2a2a', glowC: '255,40,40', size: sz, a: dayK, glow: true });
-        if (greenOn) NL_planes.push({ p: P_light(tipS, tipW, tipZ), col: '#22ff55', glowC: '40,255,90', size: sz, a: dayK, glow: true });
-        if (tailOn) NL_planes.push({ p: P_light(tipS - 3 * SCn, 0, tipZ * 0.9), col: '#fffbe8', glowC: '255,250,220', size: sz, a: dayK, glow: true });
+        if (redOn) NL_planes.push({ p: P_light(tipS, tipW, tipZ), col: '#ff2a2a', glowC: '255,40,40', size: sz, a: dayK, glow: true });
+        if (greenOn) NL_planes.push({ p: P_light(tipS, -tipW, tipZ), col: '#22ff55', glowC: '40,255,90', size: sz, a: dayK, glow: true });
+        if (tailOn) NL_planes.push({ p: P_light((jt ? -14 : hl ? -6.2 : -4.4) * SCn, 0, jt ? 0.5 * SCn : tipZ * 0.9), col: '#fffbe8', glowC: '255,250,220', size: sz, a: dayK, glow: true });
         let hs = 0; for (let i_ = 0; i_ < String(id).length; i_++) hs = (hs * 31 + String(id).charCodeAt(i_)) | 0;
         const ph = (now + Math.abs(hs) % 1200) % 1200;            // bílý strobo: dvojitý záblesk co 1,2 s
         if (ph < 90 || (ph > 190 && ph < 280)) {
@@ -544,10 +544,11 @@
     if (NL_planes.length) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
+      const ga = 0.35 + 0.65 * Math.min(1, night * 2);                  // ve dne slabší aureola, aby se na světlém pozadí nepřepálila
       for (const l of NL_planes) {
         const [lx, ly] = l.p, R = l.size * (l.big ? 4.5 : 3);
         const gr = ctx.createRadialGradient(lx, ly, 0, lx, ly, R);
-        gr.addColorStop(0, `rgba(${l.glowC},${0.85 * l.a})`); gr.addColorStop(0.35, `rgba(${l.glowC},${0.35 * l.a})`); gr.addColorStop(1, `rgba(${l.glowC},0)`);
+        gr.addColorStop(0, `rgba(${l.glowC},${0.85 * l.a * ga})`); gr.addColorStop(0.35, `rgba(${l.glowC},${0.35 * l.a * ga})`); gr.addColorStop(1, `rgba(${l.glowC},0)`);
         ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(lx, ly, R, 0, 6.2832); ctx.fill();
       }
       ctx.restore();
