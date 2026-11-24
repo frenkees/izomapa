@@ -97,6 +97,7 @@ def postav_stranku(M, html_out='site/index.html', og_cesta='og.jpg', je_obec=Fal
         'VITR': 'true' if M.get('vitr') else 'false',
         'POCASI': 'true' if M.get('pocasi') else 'false',
         'LETADLA': 'true' if M.get('letadla', False) else 'false',
+        'LETADLA_LZS': json.dumps(M.get('letadla_lzs') or None, ensure_ascii=False),
         'DOPRAVA_HERE': 'true' if M.get('doprava_here') else 'false',
         'PLUHY': 'true' if M.get('pluhy', False) else 'false',
         'NASTUPISTE': 'true' if M.get('nastupiste', False) else 'false',

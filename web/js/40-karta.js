@@ -4,6 +4,7 @@
   function showCard({ title, text, rows, lon, lat, k, link, linkText, target, dep }) {
     $('cardTitle').textContent = title;
     delete $('card').dataset.trip;
+    delete $('card').dataset.plane;
     if (k && !(LAYERS.find((l) => l.key === k) || {}).status?.startsWith('hotovo')) { const t = document.createElement('span'); t.className = 'wip-tag'; t.textContent = 'Rozpracováno'; $('cardTitle').append(' ', t); }
     $('cardText').hidden = !text; $('cardText').textContent = text || '';
     $('cardExtra').replaceChildren();

@@ -19,7 +19,7 @@
     }
     if (typeof PLANES !== 'undefined') {
       const pl = PLANES.drawn.find((q) => Math.hypot(q[0] - e.position.x, q[1] - e.position.y) < 26);
-      if (pl) { planeFollow(pl[2]); return; }
+      if (pl) { planeCard(pl[2]); return; }
     }
     const v = MHD.drawn.find((q) => Math.hypot(q[0] - e.position.x, q[1] - e.position.y) < 18);
     if (v) { mhdFollow(v[2]); return; }
