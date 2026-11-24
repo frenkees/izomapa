@@ -48,3 +48,12 @@ dialog.plocha { max-width: 440px; } dialog.plocha h3 { margin-top: 0; } dialog.p
 .coffee { display: block; font-size: .82rem; color: var(--muted); text-decoration: none; padding: 2px 0; }
 .coffee:hover, .coffee:focus-visible { color: var(--ink); text-decoration: underline; }
 .support-links img { width: 132px; height: 132px; image-rendering: pixelated; background: #fff; padding: 4px; }
+/* karta spoje MHD (klik na špendlík): malý jízdní řád ve směru jízdy */
+.trip-tt { display: grid; align-content: start; font-size: .82rem; margin-top: 2px; max-height: min(38vh, 300px); overflow-y: auto; position: relative; scrollbar-width: thin; scrollbar-color: var(--edge) transparent; }
+.trip-tt .tt-r { display: grid; grid-template-columns: 3.4em minmax(0, 1fr) auto; gap: 8px; padding: 3px 4px; border-left: 3px solid transparent; align-items: baseline; }
+.trip-tt .tt-t { font-variant-numeric: tabular-nums; color: var(--ink); }
+.trip-tt .tt-n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.trip-tt .tt-p { color: var(--muted); font-size: .78em; text-decoration: line-through; font-variant-numeric: tabular-nums; }
+.trip-tt .tt-past .tt-t, .trip-tt .tt-past .tt-n { color: var(--muted); opacity: .55; }
+.trip-tt .tt-next { background: rgba(242, 198, 109, .14); border-left-color: var(--lamp); }
+.trip-tt .tt-next .tt-t, .trip-tt .tt-next .tt-n { color: var(--lamp); font-weight: 700; }

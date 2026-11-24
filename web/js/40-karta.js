@@ -3,6 +3,7 @@
   const cardHooks = [], buildingClicks = [];               // doplňky: Izomapa.onCard, Izomapa.onBuildingClick (90-doplnky-api.js)
   function showCard({ title, text, rows, lon, lat, k, link, linkText, target, dep }) {
     $('cardTitle').textContent = title;
+    delete $('card').dataset.trip;
     if (k && !(LAYERS.find((l) => l.key === k) || {}).status?.startsWith('hotovo')) { const t = document.createElement('span'); t.className = 'wip-tag'; t.textContent = 'Rozpracováno'; $('cardTitle').append(' ', t); }
     $('cardText').hidden = !text; $('cardText').textContent = text || '';
     $('cardExtra').replaceChildren();
@@ -95,7 +96,7 @@
     if (pl) { showCard({ title: pl.name, text: pl.text, lon: pl.lon, lat: pl.lat, k: pl.k, rows: [] }); return; }
     showCard({ title: 'Vybrané místo', rows: [], lon, lat });
   }
-  const closeCard = () => { $('card').hidden = true; state.sel = null; state.selStop = null; };
+  const closeCard = () => { $('card').hidden = true; state.sel = null; state.selStop = null; if (MHD.cardTrip != null) { MHD.cardTrip = null; if (MHD.follow === null) routeOff(); } };
   $('cardClose').addEventListener('click', closeCard);
   addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('card').hidden && !document.querySelector('dialog[open]') && !e.target.matches('input, textarea')) closeCard(); });
   // mobil: kartu jde stáhnout prstem dolů

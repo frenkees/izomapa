@@ -72,7 +72,7 @@
 
   function create(api, doc = document, fetchFn = (...a) => fetch(...a)) {
     const cfg = { api: 'api/mhd_live', poll_s: 30, ...(api.getPluginData(ID) || {}) };
-    const S = { live: [], match: new Map(), free: [], freePos: new Map(), cur: new Map(), byId: new Map(), ok: false, t: 0, timers: [] };
+    const S = { live: [], match: new Map(), free: [], cur: new Map(), byId: new Map(), hit: [], ok: false, t: 0, timers: [] };
     let box = null, off = [];
     const on = () => !!(box && box.querySelector('input').checked);
 
@@ -108,31 +108,24 @@
       const M = api.getMhd(); if (!M) return;
       const a = Math.max(0, Math.min(1, (0.24 - view.sx) / 0.08)); if (a <= 0) return;
       const frac = view.now / 1000 - Math.floor(view.now / 1000), t = view.now / 1000, out = frontaPinu; out.length = 0;
-      const volne = S.free.map((v) => ({ v, w: S.freePos.get(v.id) }));
       for (const [i, el, ceka, , d] of api.getMhdActive()) {
         if (ceka) continue;
-        const trip = M.trips[i], line = M.routes[trip[0]][0];
+        const trip = M.trips[i];
+        if (M.routes[trip[0]][1] === 2) continue;         // vlaky bez špendlíku
         const o = api.mhdPos(trip, el + frac), m = S.match.get(i);
-        if (!m && volne.some((f) => f.w && f.v.ln === line && Math.hypot(f.w[0] - o.x, f.w[1] - o.y) < 250)) continue;   // totéž vozidlo je už vidět na skutečné poloze
-        out.push({ ix: o.ix, iy: o.iy, line, k: m ? kat(m.rep) : 'n', ph: i });
+        out.push({ ix: o.ix, iy: o.iy, line: M.routes[trip[0]][0], k: m ? kat(m.rep) : 'n', ph: i, i });
       }
-      for (const f of volne) {                             // živá vozidla bez spoje v jízdním řádu: na skutečné poloze, plynule
-        const [x, y] = api.latLonToWorld(f.v.la, f.v.lo);
-        let w = S.freePos.get(f.v.id); if (!w) S.freePos.set(f.v.id, w = [x, y]);
-        w[0] += (x - w[0]) * 0.06; w[1] += (y - w[1]) * 0.06;
-        const [ix, iy] = api.toImg(w[0], w[1], api.gz(w[0], w[1]));
-        out.push({ ix, iy, line: f.v.ln, k: kat(f.v.d), ph: f.v.id.length ? f.v.id.charCodeAt(f.v.id.length - 1) : 0 });
-      }
-      for (const id of S.freePos.keys()) if (!S.free.some((v) => v.id === id)) S.freePos.delete(id);
       out.sort((p, q) => p.iy - q.iy);
       const U = 2, bob = [0, 1, 2, 1];
       ctx.save(); ctx.globalAlpha = a; ctx.imageSmoothingEnabled = false;
+      S.hit.length = 0;
       for (const p of out) {
         const [X, Y] = view.toScreen(p.ix, p.iy);
         if (X < -30 || Y < -50 || X > view.cw + 30 || Y > view.ch + 30) continue;
         const b = bob[Math.floor(t * 3 + p.ph * 0.7) & 3], x = Math.round(X), y = Math.round(Y);
         ctx.fillStyle = 'rgba(10,14,24,0.30)'; ctx.fillRect(x - (3 - (b >> 1)) * U, y - U, (6 - (b >> 1) * 2) * U, U); ctx.fillRect(x - (2 - (b >> 1)) * U, y, (4 - (b >> 1) * 2) * U, U >> 1 || 1);
         ctx.drawImage(sprite(p.line, p.k, doc), x - 6 * U - (U >> 1), y - 16 * U - b * U, 13 * U, 17 * U);
+        if (a > 0.5) S.hit.push([x, y - 9 * U - b * U, p.i]);
       }
       ctx.restore();
     }
@@ -151,7 +144,12 @@
     function start() {
       ui();
       api.setMhdDelayHook(hook);
-      off.push(api.onFrame((ctx, view) => { plyn(view.dt); if (on()) pins(ctx, view); }, { layer: 'top' }));
+      off.push(api.onFrame((ctx, view) => { plyn(view.dt); if (on()) pins(ctx, view); else S.hit.length = 0; }, { layer: 'top' }));
+      off.push(api.onMapClick((e) => {                     // klik na špendlík otevře kartu spoje (malý jízdní řád, další zastávka se zpožděním)
+        let best = null, bd = 17;
+        for (const [x, y, i] of S.hit) { const d = Math.hypot(x - e.screenX, y - e.screenY); if (d < bd) { bd = d; best = i; } }
+        return best != null && api.mhdTripCard(best) === true;
+      }, { priority: 10 }));
       const t0 = setInterval(() => { if (api.getMhd()) { clearInterval(t0); nacti(); } }, 1000);   // jízdní řády se načítají až po startu
       S.timers.push(t0, setInterval(nacti, cfg.poll_s * 1000));
     }

@@ -83,6 +83,7 @@
     setMhdDelayHook(fn) { MHD.delayOf = typeof fn === 'function' ? fn : null; MHD.t = -1; },
     getMhdActive: () => (MHD.on ? MHD.act : []),            // [[i, s od odjezdu (se zpožděním), s do odjezdu na konečné, pořadí ve frontě, zpoždění s], …]
     getMhdRaw: () => (MHD.on ? mhdRaw(true) : []),          // [[i, s od odjezdu podle jízdního řádu], …] i pro spoje s možným zpožděním, kvůli párování živých vozidel
+    mhdTripCard: (i) => mhdTripCard(i),                      // karta spoje s malým jízdním řádem (další zastávka a příjezdy se zpožděním), nakreslí i trasu
     mhdPos: (trip, el) => mhdPos(trip, el),                 // poloha spoje el s po odjezdu: {x, y, z, ix, iy, dx, dy}
     getMhd: () => (MHD.on ? MHD : null),                   // jízdní řády z mhd.json (routes, trips, names, stops…), null bez MHD nebo před načtením
     // odjezdy: [[s do odjezdu, spoj z mhd.json trips], …] seřazené; stops = index zastávky (MHD.names) nebo Set indexů

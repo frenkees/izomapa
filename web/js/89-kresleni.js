@@ -106,7 +106,7 @@
       }
       if (MHD.on) {
         const ns = Math.floor(now / 1000);
-        if (ns !== MHD.t) { MHD.t = ns; MHD.act = mhdActive(); updateXings(); if (MHD.follow !== null || MHD.route !== null) mhdFollowText(); }
+        if (ns !== MHD.t) { MHD.t = ns; MHD.act = mhdActive(); updateXings(); if (MHD.follow !== null || MHD.route !== null) mhdFollowText(); if (MHD.cardTrip != null) { if (!$('card').hidden && $('card').dataset.trip === String(MHD.cardTrip)) { if (ns % 5 === 0) mhdTripCard(MHD.cardTrip, true); } else MHD.cardTrip = null; } }
         MHD.drawn = [];
         if (MHD.follow !== null) {
           const a = MHD.act.find((q) => q[0] === MHD.follow);

@@ -625,6 +625,34 @@
     showCard({ title: `Zastávka ${MHD.names[s.n]}`, text: rows.length ? 'Odjezdy podle jízdního řádu, bez zpoždění.' : 'V příští hodině odtud podle jízdního řádu nic nejede.',
       rows, dep: true, lon: s.x / cam.kx + cam.lon0, lat: s.y / cam.ky + cam.lat0 });
   }
+  // karta spoje (klik na špendlík MHD z doplňku mhd_live): malý jízdní řád spoje ve směru jízdy, další zastávka zvýrazněná,
+  // příjezdy včetně zpoždění (zpoždění z MHD.act, viz setMhdDelayHook); obnovuje se za jízdy, trasa spoje je nakreslená na mapě
+  function mhdTripCard(i, refresh) {
+    const a = MHD.act.find((q) => q[0] === i), t = MHD.trips && MHD.trips[i], card = $('card');
+    if (!a || !t) { if (refresh) { MHD.cardTrip = null; if (MHD.follow === null) routeOff(); $('cardText').textContent = 'Spoj dojel do cílové zastávky.'; } return false; }
+    const [line, typ] = MHD.routes[t[0]], d = Math.round(a[4] || 0), z = t[6], el = a[1];
+    const fmt = (s) => { const v = Math.round(s / 60) % 1440; return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`; };
+    let nk = -1; for (let k = 0; k < z.length; k += 2) if (z[k + 1] >= el) { nk = k; break; }
+    const late = Math.round(d / 60), dly = Math.abs(d) < 45 ? 'Jede včas' : d > 0 ? `Zpoždění ${late} min` : `Předjíždí o ${-late} min`;
+    const nx = nk >= 0 ? `Další zastávka ${MHD.names[z[nk]]}, příjezd ${fmt(t[3] + z[nk + 1] + d)}` : 'Končí v cílové zastávce';
+    const old = card.dataset.trip === String(i) && $('cardExtra').firstChild ? $('cardExtra').firstChild.scrollTop : null;
+    const o = mhdPos(t, el);
+    showCard({ title: `${MHD_DRUH(typ)} ${line} → ${MHD.names[t[5]]}`, text: `${dly}. ${nx}.`, rows: [], dep: true, lon: o.x / cam.kx + cam.lon0, lat: o.y / cam.ky + cam.lat0 });
+    card.dataset.trip = String(i); MHD.cardTrip = i;
+    const tb = document.createElement('div'); tb.className = 'trip-tt'; let nxEl = null;
+    for (let k = 0; k < z.length; k += 2) {
+      const sc = t[3] + z[k + 1], row = document.createElement('div'); row.className = 'tt-r' + (k === nk ? ' tt-next' : z[k + 1] < el ? ' tt-past' : '');
+      const tm = document.createElement('span'); tm.className = 'tt-t'; tm.textContent = Math.abs(d) >= 45 && z[k + 1] >= el ? fmt(sc + d) : fmt(sc);
+      const nm = document.createElement('span'); nm.className = 'tt-n'; nm.textContent = MHD.names[z[k]];
+      row.append(tm, nm);
+      if (Math.abs(d) >= 45 && z[k + 1] >= el) { const pl = document.createElement('span'); pl.className = 'tt-p'; pl.textContent = fmt(sc); pl.title = 'Podle jízdního řádu'; row.append(pl); }
+      tb.append(row); if (k === nk) nxEl = row;
+    }
+    $('cardExtra').append(tb);
+    if (old !== null) tb.scrollTop = old; else if (nxEl) tb.scrollTop = Math.max(0, nxEl.offsetTop - tb.clientHeight / 3);
+    if (!refresh) { MHD.route = i; MHD.routeImg = null; $('routeFit').hidden = false; }
+    return true;
+  }
   const stopAt = (ix, iy) => {                              // zastávka pod kliknutím (do ~20 px na obrazovce, nejméně 6 m)
     if (!MHD.stopPts) return null;
     const scr = viewer.viewport.getContainerSize().x / (viewer.viewport.getBounds(true).width * W);
