@@ -1,0 +1,14 @@
+{
+  "id": "udrzba_khk",
+  "name": "Zimní údržba silnic KHK",
+  "version": "1.0.0",
+  "description": "Úseky silnic, kudy v poslední době projela zimní údržba (SÚS Královéhradeckého kraje), barevně podle stáří od posledního ošetření nebo kontrolní jízdy. Přepínač ve Vrstvách.",
+  "hook": "overlay_hook.py",
+  "libs": [],
+  "scripts": ["udrzba_khk.js"],
+  "styles": ["udrzba_khk.css"],
+  "defaults": {
+    "api": "api/udrzba_khk",
+    "poll_s": 300
+  }
+}

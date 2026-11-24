@@ -1,0 +1,13 @@
+{
+  "id": "lampy_svetla",
+  "name": "Světlo pouličních lamp",
+  "version": "1.0.0",
+  "description": "V noci rozsvítí záři pouličních lamp přímo v prohlížeči (bez přerenderu dlaždic): na vedlejších ulicích starší oranžové sodíkové světlo, na hlavních tazích modernější bílé LED.",
+  "hook": "overlay_hook.py",
+  "libs": [],
+  "scripts": ["lampy_svetla.js"],
+  "styles": [],
+  "defaults": {
+    "data": "doplnky/lampy_svetla/lampy.json"
+  }
+}
