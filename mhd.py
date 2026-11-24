@@ -225,6 +225,19 @@ for t in trips:
         seq += [a - t0, round(dist * k)]
         if d > a: seq += [d - t0, round(dist * k)]              # pobyt v zastávce
         zs += [nid(nm), a - t0]
+    T_, D_ = seq[0::2], seq[1::2]; k_ = 1                          # zastávky ve stejné minutě mají stejný čas a různou vzdálenost (skok o stovky metrů za 0 s): čas rozložit podle vzdálenosti
+    while k_ < len(T_):
+        if T_[k_] == T_[k_ - 1] and D_[k_] > D_[k_ - 1]:
+            a_ = k_ - 1
+            while a_ > 0 and T_[a_ - 1] == T_[k_]: a_ -= 1
+            b_ = k_
+            while b_ + 1 < len(T_) and T_[b_ + 1] == T_[k_]: b_ += 1
+            lo_, hi_ = max(a_ - 1, 0), min(b_ + 1, len(T_) - 1)
+            if D_[hi_] > D_[lo_] and T_[hi_] > T_[lo_]:
+                for m_ in range(lo_ + 1, hi_): T_[m_] = round(T_[lo_] + (T_[hi_] - T_[lo_]) * (D_[m_] - D_[lo_]) / (D_[hi_] - D_[lo_]), 1)
+            k_ = hi_
+        k_ += 1
+    seq = [v_ for p_ in zip(T_, D_) for v_ in p_]
     out.append([RI[t['route_id']], SI[t['shape_id']], t['service_id'], t0, seq, nid(t['trip_headsign'] or s[-1][4] or ''), zs])
 # terminál (assets/terminal_hd.json): odjezdová nástupiště jsou pod střechou, tvar spoje ale začíná u výstupní zastávky; vůz začíná na nástupišti (vzdálenost 0 -> místo v pruhu)
 TERM = json.load(open('assets/terminal_hd.json', encoding='utf-8')) if os.path.exists('assets/terminal_hd.json') else None

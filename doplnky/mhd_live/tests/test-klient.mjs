@@ -31,3 +31,16 @@ assert.equal(r2.match.size, 0); assert.equal(r2.free.length, 1);
 // jiná linka se nepáruje
 assert.equal(parovani([{ ...v, ln: '9' }], [[0, 500]], M, api).match.size, 0);
 console.log('mhd_live: OK');
+
+// doháněcí model: elFor je inverze profilu, postup nikdy necouvá a dojede cíl
+const { elFor, postup } = win.IzomapaMhdLive;
+const M2 = { shapes: [{ L: 1000 }] }, trip = [0, 0, 's', 0, [0, 0, 100, 500, 160, 500, 260, 1000]];   // 5 m/s, 60 s stojí na 500 m, pak 5 m/s
+assert.equal(elFor(trip, 250, M2), 50); assert.equal(elFor(trip, 500, M2), 100); assert.ok(elFor(trip, 999, M2) > 259 || elFor(trip, 999, M2) > 250);
+assert.equal(elFor(trip, 1000, M2), 261);
+const b = { sd: 300, v: 10, tgt: 250, tt: 0, vg: 0, tm: 0 };   // před cílem: zpomalí a počká, nikdy necouvne
+let prev = b.sd; for (let t = 1000; t <= 20000; t += 50) { const s2 = postup(b, t); assert.ok(s2 >= prev - 1e-9); prev = s2; }
+assert.ok(prev >= 300 && prev < 330);
+const c = { sd: 0, v: 0, tgt: 400, tt: 0, vg: 10, tm: 0 };       // pozadu: zrychlí, dojede cíl
+for (let t = 100; t <= 40000; t += 100) postup(c, t);
+assert.ok(c.sd > 400);
+console.log('mhd_live dohánění: OK');

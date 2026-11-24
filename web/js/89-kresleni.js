@@ -110,11 +110,11 @@
         MHD.drawn = [];
         if (MHD.follow !== null) {
           const a = MHD.act.find((q) => q[0] === MHD.follow);
-          if (a) { const o = mhdPos(MHD.trips[a[0]], a[2] ? 0 : a[1] + (now / 1000 - ns) - (busWait.get(a[0]) || 0)); viewer.viewport.panTo(new OpenSeadragon.Point(o.ix / W, o.iy / W), true); }
+          if (a) { const o = mhdPos(MHD.trips[a[0]], a[2] ? 0 : mhdEl(a[0], a[1], now / 1000 - ns) - (busWait.get(a[0]) || 0)); viewer.viewport.panTo(new OpenSeadragon.Point(o.ix / W, o.iy / W), true); }
         }
         if (sx > 0.12) for (const [i, el, ceka, poradi] of MHD.act) {
           const trip = MHD.trips[i], [line, typ] = MHD.routes[trip[0]];
-          let o = mhdPos(trip, ceka ? 0 : el + (now / 1000 - ns) - (typ === 2 ? 0 : busDelay(i, trip, el + (now / 1000 - ns), dt)));   // na konečné stojí
+          let o = mhdPos(trip, ceka ? 0 : mhdEl(i, el, now / 1000 - ns) - (typ === 2 ? 0 : busDelay(i, trip, el + (now / 1000 - ns), dt)));   // na konečné stojí
           const ods = ceka && typ === 0 ? odstavPos(trip, ceka, poradi) : null;
           if (ods) o = ods;
           else if (poradi) {                                     // další vůz ve frontě na konečné: o délku vozu (s mezerou) za předchozím, po silnici, kudy linka přijíždí

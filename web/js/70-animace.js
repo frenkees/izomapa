@@ -99,6 +99,7 @@
     const f = Math.max(0, Math.min(1, (el - q[i - 2]) / ((q[i] - q[i - 2]) || 1)));
     return q[i - 1] + (q[i + 1] - q[i - 1]) * f;
   };
+  const mhdEl = (i, el, f) => (MHD.elFix ? MHD.elFix(i, el, f) : el + f);   // čas na jízdním řádu, podle kterého se spoj kreslí v tomto snímku (doplněk může polohu řídit každý snímek: setMhdElHook)
   const busWait = new Map();                               // zpoždění autobusů a tramvají (s) čekajících na přejezdu
   function busDelay(i, trip, el, dt) {                     // před zavřeným přejezdem stát, po otevření zpoždění dohnat (o polovinu rychleji)
     let d = busWait.get(i) || 0, wait = false;

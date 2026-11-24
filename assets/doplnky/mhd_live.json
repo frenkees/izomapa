@@ -1,1 +1,1 @@
-{"enabled": true, "api": "api/mhd_live", "poll_s": 30}
+{"enabled": true, "api": "api/mhd_live", "poll_s": 15}

@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-DEFAULTS: dict[str, Any] = {'api': 'api/mhd_live', 'poll_s': 30}
+DEFAULTS: dict[str, Any] = {'api': 'api/mhd_live', 'poll_s': 15}
 
 
 def build_overlay(ctx: dict[str, Any]) -> dict[str, Any] | bool:

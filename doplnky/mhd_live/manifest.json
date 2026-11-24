@@ -9,6 +9,6 @@
   "styles": ["mhd_live.css"],
   "defaults": {
     "api": "api/mhd_live",
-    "poll_s": 30
+    "poll_s": 15
   }
 }

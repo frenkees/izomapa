@@ -81,6 +81,8 @@
     getRoads: () => roads,                                 // kusy silnic načtených čtverců (w svět m, p obrázek, c třída, o jednosměrka, ln pruhy, k čtverec, L délka a data z overlay)
     // zpoždění spojů: fn(index spoje v MHD.trips) -> zpoždění v s (kladné = spoj je pozadu, vykreslí se na trase „zpět“); volá se jednou za sekundu pro každý spoj, mít to rychlé. null = vypnout.
     setMhdDelayHook(fn) { MHD.delayOf = typeof fn === 'function' ? fn : null; MHD.t = -1; },
+    // poloha spoje v každém snímku: fn(i, el, frac) -> čas na jízdním řádu (s od odjezdu), podle něhož se spoj nakreslí (el = hodnota z posledního sekundového kroku, frac = zlomek sekundy od něj); bez háčku el + frac. null = vypnout.
+    setMhdElHook(fn) { MHD.elFix = typeof fn === 'function' ? fn : null; },
     getMhdActive: () => (MHD.on ? MHD.act : []),            // [[i, s od odjezdu (se zpožděním), s do odjezdu na konečné, pořadí ve frontě, zpoždění s], …]
     getMhdRaw: () => (MHD.on ? mhdRaw(true) : []),          // [[i, s od odjezdu podle jízdního řádu], …] i pro spoje s možným zpožděním, kvůli párování živých vozidel
     mhdTripCard: (i) => mhdTripCard(i),                      // karta spoje s malým jízdním řádem (další zastávka a příjezdy se zpožděním), nakreslí i trasu
