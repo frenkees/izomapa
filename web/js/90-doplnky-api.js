@@ -79,6 +79,11 @@
     // r = kus silnice z getRoads(), dir 1 / -1 = po / proti směru kusu; volá se pro každé auto v každém snímku (mít to rychlé, kešovat). null = vypnout.
     setTrafficHook(h) { trafficHook = h || null; },
     getRoads: () => roads,                                 // kusy silnic načtených čtverců (w svět m, p obrázek, c třída, o jednosměrka, ln pruhy, k čtverec, L délka a data z overlay)
+    // zpoždění spojů: fn(index spoje v MHD.trips) -> zpoždění v s (kladné = spoj je pozadu, vykreslí se na trase „zpět“); volá se jednou za sekundu pro každý spoj, mít to rychlé. null = vypnout.
+    setMhdDelayHook(fn) { MHD.delayOf = typeof fn === 'function' ? fn : null; MHD.t = -1; },
+    getMhdActive: () => (MHD.on ? MHD.act : []),            // [[i, s od odjezdu (se zpožděním), s do odjezdu na konečné, pořadí ve frontě, zpoždění s], …]
+    getMhdRaw: () => (MHD.on ? mhdRaw(true) : []),          // [[i, s od odjezdu podle jízdního řádu], …] i pro spoje s možným zpožděním, kvůli párování živých vozidel
+    mhdPos: (trip, el) => mhdPos(trip, el),                 // poloha spoje el s po odjezdu: {x, y, z, ix, iy, dx, dy}
     getMhd: () => (MHD.on ? MHD : null),                   // jízdní řády z mhd.json (routes, trips, names, stops…), null bez MHD nebo před načtením
     // odjezdy: [[s do odjezdu, spoj z mhd.json trips], …] seřazené; stops = index zastávky (MHD.names) nebo Set indexů
     departures: (stops, { trains = false, horizon = 3600 } = {}) => (MHD.on ? stopDepartures(stops, trains, horizon) : []),

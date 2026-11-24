@@ -1,0 +1,4 @@
+.mhdlive-leg { display: inline-flex; gap: 3px; margin-left: 6px; vertical-align: middle; }
+.mhdlive-leg i { width: 8px; height: 8px; border: 1px solid #14161d; display: inline-block; image-rendering: pixelated; }
+.mhdlive-leg i.g { background: #4cc34d; } .mhdlive-leg i.y { background: #f2d03b; } .mhdlive-leg i.o { background: #f08a2b; }
+.mhdlive-leg i.r { background: #e0382f; } .mhdlive-leg i.n { background: #8a93a3; }

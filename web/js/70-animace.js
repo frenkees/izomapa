@@ -463,19 +463,31 @@
     }
     return on;
   }
-  function mhdActive() {                                   // jedoucí spoje (dnešní i ty, co vyjely včera před půlnocí)
+  // zpoždění spojů z doplňku (Izomapa.setMhdDelayHook): zpožděný spoj je na trase o zpoždění „zpět“ (el - d), dřívější vpřed.
+  // mhdRaw = spoje platné dnes/včera, které podle jízdního řádu (el bez zpoždění) mohou jet i s kladným či záporným zpožděním;
+  // [i, el podle jízdního řádu]. Doplněk z toho páruje živá vozidla na spoje, mhdActive pak použije zpoždění.
+  const MHD_DELAY_MAX = 1800, MHD_EARLY_MAX = 180;
+  function mhdRaw(ext) {
     const n = pragueNow(), y = new Date(); y.setDate(y.getDate() - 1);
     let today = mhdServices(n.d, n.wd, true);
     if (!MHD.trips.some((t) => today.has(t[2]))) today = mhdServices(n.d, n.wd, false);   // prošlý jízdní řád: aspoň podle dne v týdnu
     const yest = mhdServices(ymd(y), (n.wd + 6) % 7, false), out = [];
+    const pad = ext ? MHD_DELAY_MAX : (MHD.delayOf ? MHD_DELAY_MAX : 0), early = ext ? MHD_EARLY_MAX : (MHD.delayOf ? MHD_EARLY_MAX : 0);
     for (const [svc, t] of [[today, n.s], [yest, n.s + 86400]]) {
       const T = MHD.trips; let lo = 0, hi = T.length;
-      while (lo < hi) { const m = (lo + hi) >> 1; if (T[m][3] < t - MHD.maxDur) lo = m + 1; else hi = m; }
-      for (let i = lo; i < T.length && T[i][3] <= t + (MHD.maxWait || 0); i++) {
+      while (lo < hi) { const m = (lo + hi) >> 1; if (T[m][3] < t - MHD.maxDur - pad) lo = m + 1; else hi = m; }
+      for (let i = lo; i < T.length && T[i][3] <= t + (MHD.maxWait || 0) + early; i++) {
         if (!svc.has(T[i][2])) continue;
-        const el = t - T[i][3];
-        if (el <= MHD.dur[i] && el >= -(T[i][7] || 0)) out.push(el >= 0 ? [i, el] : [i, 0, -el]);   // [i, s od odjezdu, s do odjezdu když stojí na konečné]
+        out.push([i, t - T[i][3]]);
       }
+    }
+    return out;
+  }
+  function mhdActive() {                                   // jedoucí spoje (dnešní i ty, co vyjely včera před půlnocí)
+    const out = [];
+    for (const [i, el0] of mhdRaw(false)) {
+      const d = MHD.delayOf ? (MHD.delayOf(i) || 0) : 0, el = el0 - d;
+      if (el <= MHD.dur[i] && el >= -(MHD.trips[i][7] || 0)) out.push(el >= 0 ? [i, el, 0, 0, d] : [i, 0, -el, 0, d]);   // [i, s od odjezdu, s do odjezdu když stojí na konečné, pořadí, zpoždění s]
     }
     const fronta = {};                                     // víc vozů na téže konečné: kdo odjíždí později, stojí za ním (a[3] = pořadí)
     // autobus na konečné jen poslední 3 minuty před odjezdem a nejvýš jeden na stanovišti (jinak na velké konečné vzniklo „hnízdo

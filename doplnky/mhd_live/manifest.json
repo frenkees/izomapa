@@ -1,0 +1,14 @@
+{
+  "id": "mhd_live",
+  "name": "MHD živě: zpoždění a špendlíky",
+  "version": "1.0.0",
+  "description": "Živá poloha a zpoždění vozidel MHD (DPmHK): spoje se vykreslí na trase podle skutečného zpoždění a přepínač „Všechny spoje MHD“ ukáže na odzoomované mapě barevné špendlíky s číslem linky.",
+  "hook": "overlay_hook.py",
+  "libs": [],
+  "scripts": ["mhd_live.js"],
+  "styles": ["mhd_live.css"],
+  "defaults": {
+    "api": "api/mhd_live",
+    "poll_s": 30
+  }
+}
