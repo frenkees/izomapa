@@ -45,6 +45,24 @@ for (let t = 100; t <= 40000; t += 100) postup(c, t);
 assert.ok(c.sd > 400);
 console.log('mhd_live dohánění: OK');
 
+
+// zastávky: extrapolace nepřejede zastávku, stojící vůz se k ní přichytí
+{
+  const { zastavkyS, cilZastavka } = win.IzomapaMhdLive;
+  const tr = [0, 0, 's', 0, [0, 0, 100, 500, 130, 500, 230, 1000], [], [7, 0, 8, 100, 9, 230]];
+  const zs = zastavkyS(tr); assert.deepEqual([...zs], [500, 1000]);
+  const c1 = cilZastavka(zs, 300, 10, 550); assert.equal(c1.cap, 499); assert.equal(c1.tgt, 499);
+  const c2 = cilZastavka(zs, 300, 10, 400); assert.equal(c2.cap, null); assert.equal(c2.tgt, 400);
+  const c3 = cilZastavka(zs, 488, 0, 488); assert.equal(c3.tgt, 500); assert.equal(c3.cap, null);   // stojí 12 m před zastávkou: přichytit
+  const c4 = cilZastavka(zs, 440, 0, 440); assert.equal(c4.tgt, 440);                              // stojí 60 m před: třeba semafor
+  const bz = { sd: 300, v: 8, tgt: c1.tgt, tt: 0, vg: 8, tm: 0, cap: c1.cap };
+  let vmax = 0; for (let t = 100; t <= 20000; t += 50) { postup(bz, t); }
+  assert.ok(bz.sd <= 500 && bz.sd > 480, 'dojede na zastávku a zastaví: ' + bz.sd); assert.ok(bz.v < 0.3);
+  const bp = { sd: 300, v: 8, tgt: 300, tt: 0, vg: 8, tm: 0, cap: 499 };   // po 22 s bez záznamu se strop uvolní
+  for (let t = 100; t <= 40000; t += 50) postup(bp, t); assert.ok(bp.sd > 500 || bp.v === 0);
+}
+console.log('mhd_live zastávky: OK');
+
 // zácpa: stojí ≥ 60 s mimo zastávku/semafor/přejezd; u zastávky ani při jízdě ne
 {
   const Ms = { stops: [['Zastávka', 500, 0, 0]], routes: [['15', 3]], trips: [[0]] };

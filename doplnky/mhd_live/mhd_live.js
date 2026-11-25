@@ -56,7 +56,7 @@
 
   // ---------- doháněcí model polohy ----------
   const JAM_S = 90, JAM_JUNC_M = 35, JAM_STOP_M = 45, JAM_SIG_M = 60, JAM_MOVE_M = 12, JAM_KMH = 3;   // zácpa: stojí aspoň 90 s (≤ 3 km/h, nehnul se o víc než 12 m) a není u zastávky, křižovatky, semaforu ani přejezdu
-  const TAU = 8, ACC = 1.5, BRK = 2.5, VMAX = 22, AGE_EXTRA = 30, VALID_MS = 90e3;
+  const TAU = 8, ACC = 1.5, BRK = 2.5, VMAX = 22, AGE_EXTRA = 30, VALID_MS = 90e3, CAP_S = 22, SNAP_M = 20;   // CAP_S: jak dlouho (s od záznamu) drží zastávka extrapolaci; SNAP_M: stojící vůz se přichytí k zastávce do této vzdálenosti
   function schedS(trip, el, M) {                           // metr na trase podle jízdního řádu v čase el
     const q = trip[4]; let i = 2; while (i < q.length - 2 && q[i] < el) i += 2;
     const f = Math.max(0, Math.min(1, (el - q[i - 2]) / ((q[i] - q[i - 2]) || 1)));
@@ -90,11 +90,31 @@
     let t = Math.min(now - b.tm, 5000) / 1000; b.tm = now;
     while (t > 1e-6) {
       const h = Math.min(t, 0.05); t -= h;
-      const age = (now - b.tt) / 1000, vg = age < AGE_EXTRA ? b.vg : 0, gap = b.tgt + b.vg * Math.min(age, AGE_EXTRA) - b.sd;
-      const vcmd = Math.max(0, Math.min(vg + gap / TAU, Math.max(vg * 1.6, 3) + (gap > 100 ? 6 : 0), VMAX));
+      const age = (now - b.tt) / 1000, vg = age < AGE_EXTRA ? b.vg : 0; let tx = b.tgt + b.vg * Math.min(age, AGE_EXTRA), cp = false;
+      if (b.cap != null && age < CAP_S && tx > b.cap) { tx = b.cap; cp = true; }       // extrapolace nesmí přejet zastávku: vůz k ní dojede a počká na další záznam
+      const gap = tx - b.sd;
+      let vcmd = Math.max(0, Math.min(vg + gap / TAU, Math.max(vg * 1.6, 3) + (gap > 100 ? 6 : 0), VMAX));
+      if (cp) vcmd = Math.min(vcmd, Math.sqrt(1.6 * BRK * Math.max(0, gap)));      // plynulé zastavení přesně na zastávce
       b.v += Math.max(-BRK * h, Math.min(ACC * h, vcmd - b.v)); b.sd += b.v * h;
     }
     return b.sd;
+  }
+
+  // metry na trase, kde spoj stojí na zastávkách (podle jízdního řádu: čas příjezdu → metr v profilu); cache podle spoje
+  const zastS = new WeakMap();
+  function zastavkyS(trip) {
+    let z = zastS.get(trip); if (z) return z;
+    const q = trip[4], tim = new Map(); z = [];
+    for (let k = 0; k < q.length; k += 2) if (!tim.has(q[k])) tim.set(q[k], q[k + 1]);
+    for (let k = 0; k < trip[6].length; k += 2) { const s = tim.get(trip[6][k + 1]); if (s !== undefined && s > 0 && (!z.length || s > z[z.length - 1] + 5)) z.push(s); }
+    zastS.set(trip, z); return z;
+  }
+  // cíl a strop extrapolace podle zastávek: stojící vůz u zastávky se k ní přichytí, jedoucí se zastaví nejpozději na nejbližší zastávce před ním
+  function cilZastavka(zs, ps, vg, tgt) {
+    let cap = null;
+    if (vg < 0.8) { for (const z of zs) if (Math.abs(z - ps) < SNAP_M) return { tgt: z, cap: null }; return { tgt, cap }; }
+    for (const z of zs) if (z > ps + 3) { if (tgt > z - 1) { cap = z - 1; tgt = Math.min(tgt, cap); } break; }
+    return { tgt, cap };
   }
 
   // ---------- pixelový špendlík ----------
@@ -184,9 +204,9 @@
         if (!p || p.off > 80) p = projekce(sh, x, y, sj, 700, hx, hy);
         if (!p || p.off > 80) continue;                                   // GPS mimo trasu: model dojíždí dál podle posledních dat
         jamUpdate(i, v, x, y, now, M);
-        const tgt = p.s + vg * (v.ag || 0);
-        if (!b0 || !platny(b0, now) || Math.abs(tgt - b0.sd) > 600) S.ch.set(i, { sd: tgt, v: vg, tgt, tt: now, vg, tm: now });
-        else { b0.tgt = tgt; b0.tt = now; b0.vg = vg; }
+        const cz = cilZastavka(zastavkyS(trip), p.s, vg, p.s + vg * (v.ag || 0)), tgt = cz.tgt;
+        if (!b0 || !platny(b0, now) || Math.abs(tgt - b0.sd) > 600) S.ch.set(i, { sd: tgt, v: vg, tgt, tt: now, vg, tm: now, cap: cz.cap });
+        else { b0.tgt = tgt; b0.tt = now; b0.vg = vg; b0.cap = cz.cap; }
       }
       for (const [i, m] of [...S.match]) if (!r.match.has(i) && now - m.last > 600e3) { S.match.delete(i); S.ch.delete(i); S.jam.delete(i); if (S.byId.get(m.id) === i) S.byId.delete(m.id); }
       if (box) box.title = `Všechny spoje MHD: špendlíky s číslem linky na odzoomované mapě (zelený včas, žlutý 1 min, oranžový 2 min, červený 3 min a víc, šedý bez živých dat). Živě ${d.v.length} vozidel, ${r.match.size} spojeno s jízdním řádem (zdroj ${d.z === 'fcen' ? 'mapa.fcen.cz' : 'DPmHK'})`;
@@ -273,6 +293,6 @@
       onInit(api) { inst = create(api); inst.start(); },
       onDestroy() { if (inst) inst.stop(); inst = null; },
     });
-    window.IzomapaMhdLive = { create, parovani, kat, elFor, schedS, projekce, postup };       // jen pro testy
+    window.IzomapaMhdLive = { create, parovani, kat, elFor, schedS, projekce, postup, zastavkyS, cilZastavka };       // jen pro testy
   }
 })();
