@@ -47,7 +47,7 @@ if BBOX:
     bx0, by0, bx1, by1 = (lo0_ - c.x) * KX, (la0_ - c.y) * KY, (lo1_ - c.x) * KX, (la1_ - c.y) * KY
     cells = [(i, j) for i in range(math.floor((bx0 + HALF) / S), math.floor((bx1 + HALF) / S) + 1)
              for j in range(math.floor((by0 + HALF) / S), math.floor((by1 + HALF) / S) + 1)]
-    if (0, 0) not in cells: sys.exit('--stred musí ležet uvnitř --bbox')
+    if not (la0_ <= sla <= la1_ and lo0_ <= slo <= lo1_): sys.exit('--stred musí ležet uvnitř --bbox')
     cx = cy = 0.0
     if MAX: cells = sorted(cells, key=lambda ij: (ij[0] ** 2 + ij[1] ** 2, ij))[:MAX]
     lon0, lat0 = c.x, c.y
